@@ -1,0 +1,40 @@
+common:
+    name: common
+    reset: false
+capabilities:
+    logger:
+        ip: 127.0.0.2
+        port: "9020"
+    config_server:
+        ip: 127.0.0.2
+        port: "1026"
+        refresh: "300"
+    notification:
+        ip: 127.0.0.2
+        port: "10080"
+    telebot:
+        token: ${TELEBOT_TOKEN}
+        chat_id: ${TELEBOT_CHAT_ID}
+        ip: 127.0.0.2
+        port: "31337"
+    scheduler:
+        ip: 127.0.0.2
+        port: "5001"
+    monitoring:
+        ip: 127.0.0.2
+        port: "5000"
+    database:
+        ip: 127.0.0.2
+        port: "5432"
+        db_name: maindb
+        user: ${DB_USER}
+        password: ${DB_PASSWORD}
+        ssl_cert: "false"
+    file_system:
+        temp_path: ./fs_temp
+        data_path: ./fs_data
+    jupyter:
+        ip: 127.0.0.2
+        port: "8888"
+common_file_path: ""
+memconfigpath: ""
