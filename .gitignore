@@ -1,21 +1,74 @@
-# Binaries for programs and plugins
+# --- Auto-generated Merged .gitignore ---
+*$py.class
+**/*.rs.bk
+*.a
+*.db
+*.db-shm
+*.db-wal
+*.dll
+*.dylib
+*.egg
+*.egg-info/
 *.exe
 *.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
+*.lib
+*.log
+*.o
 *.out
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-go.work
-
-# VS Code
+*.prof
+*.py
+*.py[cod]
+*.pyc
+*.so
+*.sqlite3
+*.swo
+*.swp
+*.test
+.AppleDouble
+.DS_Store
+.DS_Store?
+.LSOverride
+.Python
+.Spotlight-V100
+.Trashes
+._*
+.eggs/
+.env
+.idea/
+.installed.cfg
+.venv/
 .vscode
+.vscode/
+Cargo.lock
+ENV/
+Thumbs.db
+__debug_*
+__debug_bin*
+__pycache__/
+bin/
+build/
+config_store.json
+develop-eggs/
+dist/
+downloads/
+eggs/
+ehthumbs.db
+env/
+go.work
+go.work.sum
+lib/
+lib64/
+logs/
+main
+mock_output.txt
+parts/
+sdist/
+target/
+temp/
+test
+test_app
+tmp/
+var/
+vendor/
+venv/
+wheels/
