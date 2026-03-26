@@ -17,3 +17,4 @@ ARCHITECTURE.md
 doc/
 config_store.json
 __debug_*
+vendor/
