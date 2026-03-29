@@ -1,20 +1,53 @@
-*.exe
-*.dll
-*.so
-*.dylib
-*.log
-logs/
+# .dockerignore
+# Git
+.git
+.github
+.gitignore
+.dockerignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+
+# Go
+bin/
+vendor/
+go.work
+go.work.sum
+__debug_*
+
+# Python / JS / Others
+**/__pycache__
+**/*.py[cod]
+**/*.log
+node_modules/
+dist/
+build/
+target/
+.venv/
+venv/
+
+# Environment / Secrets
+.env
+.env.*
+secrets/
+
+# OS / IDEs
 .DS_Store
 .vscode/
 .idea/
 *.swp
-.git/
-.gitignore
-Dockerfile
-.dockerignore
+*.swo
+
+# Project Docs
 README.md
-ARCHITECTURE.md
 doc/
+docs/
+ARCHITECTURE.md
+*.pdf
+*.txt
+*.xlsx
+*.numbers
+*.csv
 config_store.json
-__debug_*
-vendor/

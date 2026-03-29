@@ -1,0 +1,16 @@
+services:
+  notif-server:
+    build: .
+    image: notif-server:latest
+    container_name: notif-server
+    restart: unless-stopped
+    environment:
+      # Inject OS level variables
+      - NOTIF_SERVER_TELEGRAM_TOKEN
+      - NOTIF_SERVER_CHAT_ID
+      - NOTIF_SERVER_LOG_LEVEL
+
+networks:
+  default:
+    name: teleremote_network
+    external: true
