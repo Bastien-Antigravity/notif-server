@@ -1,4 +1,5 @@
-# --- Master Merged .gitignore ---
+# --- Master Merged .gitignore (Global + Go + Python + Rust + IDEs) ---
+
 # Global / OS
 .DS_Store
 .DS_Store?
@@ -15,6 +16,8 @@ ehthumbs.db
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
 # Environment / Secrets (NEVER COMMIT .env)
 .env
@@ -27,16 +30,7 @@ logs/
 tmp/
 temp/
 var/
-
-# Go
-bin/
-/main
-/test
-/test_app
-vendor/
-go.work
-go.work.sum
-__debug_*
+mock_output.txt
 
 # Python
 __pycache__/
@@ -65,6 +59,16 @@ wheels/
 .coverage
 htmlcov/
 
+# Go
+bin/
+/main
+/test
+/test_app
+vendor/
+go.work
+go.work.sum
+__debug_*
+
 # Rust
 target/
 **/*.rs.bk
@@ -75,3 +79,4 @@ config_store.json
 Recommendations.txt
 todo.txt
 ARCHITECTURE.md.bak
+zzz_memo
