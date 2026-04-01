@@ -1,16 +1,18 @@
 services:
+  # --- Infrastructure ---
   notif-server:
-    build: .
-    image: notif-server:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/bastien-antigravity/notif-server:${TAG:-latest}
     container_name: notif-server
     restart: unless-stopped
-    environment:
-      # Inject OS level variables
-      - NOTIF_SERVER_TELEGRAM_TOKEN
-      - NOTIF_SERVER_CHAT_ID
-      - NOTIF_SERVER_LOG_LEVEL
+    ports:
+      - "127.0.0.2:${NT_PORT:-1026}:${NT_PORT:-1026}"
+    networks:
+      - teleremote_network
+    labels: [ com.centurylinklabs.watchtower.enable=true ]
 
 networks:
-  default:
-    name: teleremote_network
+  teleremote_network:
     external: true

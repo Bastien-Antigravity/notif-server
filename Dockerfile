@@ -1,5 +1,5 @@
 # === BUILD STAGE ===
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git gcc musl-dev ca-certificates tzdata
@@ -14,10 +14,10 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /notif-server/notif-server ./cmd/main
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /notif-server/notif-server ./cmd/notif-server
 
 # === RUNTIME STAGE ===
-FROM alpine:latest
+FROM alpine:3.20
 
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata
