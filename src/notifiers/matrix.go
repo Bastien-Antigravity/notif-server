@@ -50,7 +50,7 @@ func (matrixSender *MatrixSender) SendMessage(msg, notUsed, notUsedAlso string) 
 	}
 	defer httpsResp.Body.Close()
 	if httpsResp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("unexpected http status (matrix): %s", httpsResp.StatusCode))
+		return fmt.Errorf("unexpected http status (matrix): %d", httpsResp.StatusCode)
 	}
 	return nil
 }

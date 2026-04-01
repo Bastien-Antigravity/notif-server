@@ -50,7 +50,7 @@ func (discordSender *DiscordSender) SendMessage(msg, notUsed, notUsedAlso string
 	}
 	defer httpsResp.Body.Close()
 	if httpsResp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("unexpected http status (discord): %s", httpsResp.StatusCode))
+		return fmt.Errorf("unexpected http status (discord): %d", httpsResp.StatusCode)
 	}
 	return nil
 }

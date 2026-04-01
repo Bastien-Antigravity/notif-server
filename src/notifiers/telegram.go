@@ -58,7 +58,7 @@ func (telegramSender *TelegramSender) SendMessage(msg, notUsed, notUsedAlso stri
 	}
 	defer httpsResp.Body.Close()
 	if httpsResp.StatusCode != http.StatusOK {
-		return fmt.Errorf(fmt.Sprintf("telegram, unexpected http status (telegram): %s", httpsResp.StatusCode))
+		return fmt.Errorf("telegram, unexpected http status (telegram): %d", httpsResp.StatusCode)
 	}
 	return nil
 }
