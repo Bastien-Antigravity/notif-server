@@ -80,3 +80,6 @@ Recommendations.txt
 todo.txt
 ARCHITECTURE.md.bak
 zzz_memo
+
+# Ignore pickle files
+*.pkl
