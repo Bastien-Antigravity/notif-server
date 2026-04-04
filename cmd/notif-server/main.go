@@ -10,10 +10,8 @@ import (
 	profiles "github.com/Bastien-Antigravity/flexible-logger/src/profiles"
 )
 
-const Version = "v1.0.0"
-
 func main() {
-	fmt.Printf("Starting Notif Server %s...\n", Version)
+	fmt.Printf("Starting Notif Server...\n")
 
 	// 1. Create Distributed Config
 	distConf := distributed_config.New("test")
