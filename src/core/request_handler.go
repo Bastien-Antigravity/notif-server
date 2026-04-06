@@ -5,21 +5,21 @@ import (
 
 	notifMsg "notif-server/src/schemas/notif_msg"
 
-	models "github.com/Bastien-Antigravity/flexible-logger/src/models"
+	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 	capnplib "capnproto.org/go/capnp/v3"
-	config "github.com/Bastien-Antigravity/distributed-config"
 )
 
 type NotifNcapHandler struct {
 	Name         string
-	config       *config.Config
+	config       *config.DistConfig
 	notifMessage *notifMsg.NotifieMsg
 	memSeg       *capnplib.Segment
 	msgSerDeSer  *capnplib.Message
 }
 
-func NewNotifHandler(name string, parentClassConfig *config.Config) *NotifNcapHandler {
+func NewNotifHandler(name string, parentClassConfig *config.DistConfig) *NotifNcapHandler {
 	capnplibMsg, memSeg, err := capnplib.NewMessage(capnplib.SingleSegment(nil))
 	if err != nil {
 		panic(fmt.Sprintf("Error while trying to initialize Notif Handler :'%v'\n", err))
@@ -34,7 +34,7 @@ func NewNotifHandler(name string, parentClassConfig *config.Config) *NotifNcapHa
 
 var capnpList capnplib.TextList
 
-func (notifNcapHandler *NotifNcapHandler) NotifNcapSerialize(notifMessage *models.NotifMessage) []byte {
+func (notifNcapHandler *NotifNcapHandler) NotifNcapSerialize(notifMessage *utils.NotifMessage) []byte {
 	notifNcapHandler.notifMessage.SetMessage_(notifMessage.Message)
 	notifNcapHandler.notifMessage.SetAttachment(notifMessage.Attachment)
 
@@ -51,7 +51,7 @@ func (notifNcapHandler *NotifNcapHandler) NotifNcapSerialize(notifMessage *model
 
 // DeserializeNotifMsg parses a raw byte slice (Cap'n Proto packed) into a NotifMessage.
 // This helper is exposed for servers or other components using this library.
-func DeserializeNotifMsg(data []byte) (*models.NotifMessage, error) {
+func DeserializeNotifMsg(data []byte) (*utils.NotifMessage, error) {
 	capnpMessage, err := capnplib.UnmarshalPacked(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal packed message: %v", err)
@@ -61,7 +61,7 @@ func DeserializeNotifMsg(data []byte) (*models.NotifMessage, error) {
 		return nil, fmt.Errorf("failed to read root message: %v", err)
 	}
 
-	notifMessage := &models.NotifMessage{
+	notifMessage := &utils.NotifMessage{
 		Tags: make([]string, 0),
 	}
 
@@ -87,7 +87,7 @@ func DeserializeNotifMsg(data []byte) (*models.NotifMessage, error) {
 	return notifMessage, nil
 }
 
-func (notifNcapHandler *NotifNcapHandler) NotifNcapDeSerialize(data []byte) *models.NotifMessage {
+func (notifNcapHandler *NotifNcapHandler) NotifNcapDeSerialize(data []byte) *utils.NotifMessage {
 	msg, _ := DeserializeNotifMsg(data)
 	return msg
 }

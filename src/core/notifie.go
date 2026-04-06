@@ -7,9 +7,8 @@ import (
 	"notif-server/src/interfaces"
 	"notif-server/src/notifiers"
 
-	models "github.com/Bastien-Antigravity/flexible-logger/src/models"
-
-	config "github.com/Bastien-Antigravity/distributed-config"
+	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
 // ce que doit faire le Notifie :
@@ -30,18 +29,18 @@ import (
 // when called by logger and if notif_server, this class is not called...
 type Notifie struct {
 	Name           string
-	config         *config.Config
+	config         *config.DistConfig
 	TagToSenderMap map[string]interfaces.NotifSenderInterface
-	NotifChan      chan *models.NotifMessage
+	NotifChan      chan *utils.NotifMessage
 	RawNotifChan   chan []byte
 }
 
 // This class is called by logger only with local notifie or notif_server
-func NewNotifie(conf *config.Config, parentName string) *Notifie {
+func NewNotifie(conf *config.DistConfig, parentName string) *Notifie {
 	curNotifie := &Notifie{
 		Name:           parentName,
 		config:         conf,
-		NotifChan:      make(chan *models.NotifMessage),
+		NotifChan:      make(chan *utils.NotifMessage),
 		RawNotifChan:   make(chan []byte),
 		TagToSenderMap: make(map[string]interfaces.NotifSenderInterface),
 	}
@@ -159,7 +158,7 @@ func (notifie *Notifie) LoadNotifSender(notifiersConf map[string]map[string]stri
 }
 
 // Send sends a structured notification message.
-func (notifie *Notifie) Send(msg *models.NotifMessage) {
+func (notifie *Notifie) Send(msg *utils.NotifMessage) {
 	notifie.NotifChan <- msg
 }
 
