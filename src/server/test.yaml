@@ -1,0 +1,40 @@
+common:
+    name: common
+    reset: false
+capabilities:
+    log_server:
+        ip: ${LS_IP:127.0.0.2}
+        port: ${LS_PORT:9020}
+    config_server:
+        ip: ${CF_IP:127.0.0.2}
+        port: ${CF_PORT:3306}
+        refresh: "300"
+    notif_server:
+        ip: ${NT_IP:127.0.0.2}
+        port: ${NT_PORT:1026}
+    tele_remote:
+        token: ${TR_TOKEN}
+        chat_id: ${TR_CHATID}
+        ip: ${TR_IP:127.0.0.2}
+        port: ${TR_PORT:1863}
+    scheduler:
+        ip: 127.0.0.2
+        port: "5001"
+    web_interface:
+        ip: ${WB_IP:127.0.0.2}
+        port: ${WB_PORT:8080}
+    timescale_db:
+        ip: ${TS_IP:127.0.0.2}
+        port: ${TS_PORT:5432}
+        db_name: ${TS_DBNAME:maindb}
+        user: ${TS_USER}
+        password: ${TS_PASSWORD}
+        ssl_cert: "false"
+    file_system:
+        temp_path: ./fs_temp
+        data_path: ./fs_data
+    jupyter:
+        ip: 127.0.0.2
+        port: "8888"
+common_file_path: ""
+memconfigpath: ""

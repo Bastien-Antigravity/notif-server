@@ -5,27 +5,27 @@ import (
 	"sync"
 
 	notifie "notif-server/src/core"
-	"notif-server/src/interfaces"
 
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
 )
 
-// Server represents the Config Server.
 type Server struct {
-	Logger        interfaces.Logger
-	Config        *distributed_config.Config
+	Logger        *logger.UniLog
+	Config        *config.DistConfig
 	Notifie       *notifie.Notifie
 	listeners     map[string]socket_interfaces.TransportConnection
 	listenersLock sync.RWMutex
 	shutdown      chan struct{}
+	serverSock    socket_interfaces.Socket // Store the listener socket
 }
 
 // -----------------------------------------------------------------------------
 
 // NewServer creates a new Config Server.
-func NewServer(conf *distributed_config.Config, logger interfaces.Logger, notif *notifie.Notifie) *Server {
+func NewServer(conf *config.DistConfig, logger *logger.UniLog, notif *notifie.Notifie) *Server {
 	return &Server{
 		Config:    conf,
 		Logger:    logger,
@@ -37,28 +37,42 @@ func NewServer(conf *distributed_config.Config, logger interfaces.Logger, notif 
 
 // -----------------------------------------------------------------------------
 
+// Stop shuts down the server.
+func (s *Server) Stop() {
+	close(s.shutdown)
+}
+
+// -----------------------------------------------------------------------------
+
 // Start listens for incoming TCP connections.
 func (s *Server) Start() error {
 	// Resolve address from config capabilities
-	if s.Config.Capabilities.Notification == nil || s.Config.Capabilities.Notification.Port == "" || s.Config.Capabilities.Notification.IP == "" {
-		s.Logger.Error("Config for Notification capabilities not found or invalid")
+	if s.Config.Capabilities.NotifServer == nil || s.Config.Capabilities.NotifServer.Port == "" || s.Config.Capabilities.NotifServer.IP == "" {
+		s.Logger.Error("Config for NotifServer capabilities not found or invalid")
 		os.Exit(1)
 	}
 
-	addr := s.Config.Capabilities.Notification.IP + ":" + s.Config.Capabilities.Notification.Port
+	addr := s.Config.Capabilities.NotifServer.IP + ":" + s.Config.Capabilities.NotifServer.Port
 
 	// Create a server socket using safe-socket factory
 	// We use "tcp-hello" profile which automatically handles the Handshake
-	serverSock, err := factory.Create("tcp-hello", addr, "127.0.0.1", "server", true)
+	var err error
+	s.serverSock, err = factory.Create("tcp-hello", addr, "127.0.0.1", "server", true)
 	if err != nil {
 		return err // Wrap error in caller if needed, or return raw err
 	}
-	defer serverSock.Close()
+	defer s.serverSock.Close()
 
 	s.Logger.Info("Notification Server listening on " + addr)
 
+	// Background goroutine to handle shutdown signal
+	go func() {
+		<-s.shutdown
+		s.serverSock.Close()
+	}()
+
 	for {
-		conn, err := serverSock.Accept()
+		conn, err := s.serverSock.Accept()
 		if err != nil {
 			select {
 			case <-s.shutdown:

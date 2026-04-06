@@ -1,11 +1,11 @@
 package interfaces
 
-import models "github.com/Bastien-Antigravity/flexible-logger/src/models"
+import "github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 // Notificator defines the interface for a notification service.
 type Notificator interface {
 	// Send sends a structured notification message.
-	Send(msg *models.NotifMessage)
+	Send(msg *utils.NotifMessage)
 
 	// SendRaw sends a raw byte message (serialized).
 	SendRaw(data []byte)
