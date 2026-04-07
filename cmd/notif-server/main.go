@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 
-	notifie "notif-server/src/core"
-	"notif-server/src/server"
+	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
+	"github.com/Bastien-Antigravity/notif-server/src/server"
 
 	"github.com/Bastien-Antigravity/universal-logger/src/bootstrap"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"

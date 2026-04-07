@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"notif-server/src/interfaces"
-	"notif-server/src/notifiers"
+	"github.com/Bastien-Antigravity/notif-server/src/interfaces"
+	"github.com/Bastien-Antigravity/notif-server/src/notifiers"
 
 	"github.com/Bastien-Antigravity/universal-logger/src/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"

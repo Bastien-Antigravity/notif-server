@@ -1,15 +1,16 @@
 package server
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
-	notifie "notif-server/src/core"
+	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 
-	"github.com/Bastien-Antigravity/universal-logger/src/config"
-	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
+	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 )
 
 type Server struct {
@@ -46,13 +47,14 @@ func (s *Server) Stop() {
 
 // Start listens for incoming TCP connections.
 func (s *Server) Start() error {
-	// Resolve address from config capabilities
-	if s.Config.Capabilities.NotifServer == nil || s.Config.Capabilities.NotifServer.Port == "" || s.Config.Capabilities.NotifServer.IP == "" {
-		s.Logger.Error("Config for NotifServer capabilities not found or invalid")
+	// Resolve address from config capabilities using the new generic map-based approach
+	cap, ok := s.Config.Capabilities["NotifServer"].(map[string]interface{})
+	if !ok || cap["IP"] == nil || cap["Port"] == nil {
+		s.Logger.Error("Config for NotifServer capabilities not found or invalid in generic map")
 		os.Exit(1)
 	}
 
-	addr := s.Config.Capabilities.NotifServer.IP + ":" + s.Config.Capabilities.NotifServer.Port
+	addr := fmt.Sprintf("%v:%v", cap["IP"], cap["Port"])
 
 	// Create a server socket using safe-socket factory
 	// We use "tcp-hello" profile which automatically handles the Handshake

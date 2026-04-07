@@ -3,7 +3,7 @@ package notifie
 import (
 	"fmt"
 
-	notifMsg "notif-server/src/schemas/notif_msg"
+	notifMsg "github.com/Bastien-Antigravity/notif-server/src/schemas/notif_msg"
 
 	"github.com/Bastien-Antigravity/universal-logger/src/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"

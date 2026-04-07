@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	notifie "notif-server/src/core"
-	"notif-server/src/server"
+	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
+	"github.com/Bastien-Antigravity/notif-server/src/server"
 	"github.com/Bastien-Antigravity/universal-logger/src/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
-	"github.com/Bastien-Antigravity/distributed-config/src/models"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	"github.com/stretchr/testify/assert"
 )
@@ -48,7 +47,7 @@ func (m *mockSender) SendMessage(msg, to, subject string) error {
 func TestE2EFlow(t *testing.T) {
 	// 1. Setup Configuration
 	conf := config.NewDistributedConfig("test")
-	conf.Capabilities.NotifServer = &models.NotifServerCapability{IP: "127.0.0.1", Port: "10001"}
+	conf.Capabilities["NotifServer"] = map[string]interface{}{"IP": "127.0.0.1", "Port": "10001"}
 
 	// 2. Initialize Components
 	ml := &mockLogger{}
