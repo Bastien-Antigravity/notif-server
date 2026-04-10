@@ -66,11 +66,11 @@ func NewNotifie(conf *config.DistConfig, parentName string) *Notifie {
 	curNotifie.LoadNotifSender(conf.MemConfig)
 
 	go curNotifie.processMessage()
-	go curNotifie.consumeRawMessages()
+	go curNotifie.ConsumeRawMessages()
 	return curNotifie
 }
 
-func (notifie *Notifie) consumeRawMessages() {
+func (notifie *Notifie) ConsumeRawMessages() {
 	for rawData := range notifie.RawNotifChan {
 		msg, err := DeserializeNotifMsg(rawData)
 		if err != nil {
