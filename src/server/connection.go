@@ -10,12 +10,31 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+func (s *Server) findHandshakeConnection(sock socket_interfaces.TransportConnection) *facade.HandshakeConnection {
+	if sock == nil {
+		return nil
+	}
+
+	// Try direct type assertion
+	if hc, ok := sock.(*facade.HandshakeConnection); ok {
+		return hc
+	}
+
+	// If it's a HeartbeatConnection, look inside
+	if hb, ok := sock.(*facade.HeartbeatConnection); ok {
+		return s.findHandshakeConnection(hb.TransportConnection)
+	}
+
+	return nil
+}
+
+// -----------------------------------------------------------------------------
 func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 	defer sock.Close()
 
-	// 1. Extract Client Identity from Handshake
-	hc, ok := sock.(*facade.HandshakeConnection)
-	if !ok || hc.Identity == nil {
+	// 1. Extract Client Identity from Handshake (Peeling wrappers if needed)
+	hc := s.findHandshakeConnection(sock)
+	if hc == nil || hc.Identity == nil {
 		s.Logger.Error("Connection does not have a Handshake identity")
 		return
 	}
