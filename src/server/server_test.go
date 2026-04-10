@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,12 +16,13 @@ import (
 
 // mockLogger implements the underlying logger interface for UniLog
 type mockLogger struct {
-	lastInfo string
+	CapturedLogs []string
 }
 
 func (m *mockLogger) Debug(format string, args ...any) { fmt.Printf("DEBUG: "+format+"\n", args...) }
 func (m *mockLogger) Info(format string, args ...any) {
-	m.lastInfo = fmt.Sprintf(format, args...)
+	msg := fmt.Sprintf(format, args...)
+	m.CapturedLogs = append(m.CapturedLogs, msg)
 	fmt.Printf("INFO: "+format+"\n", args...)
 }
 func (m *mockLogger) Warning(format string, args ...any) { fmt.Printf("WARN: "+format+"\n", args...) }
@@ -72,7 +74,17 @@ func TestServerConnection(t *testing.T) {
 
 	// 5. Assertions
 	assert.NotNil(t, client, "Client should be connected")
-	assert.Contains(t, ml.lastInfo, "listening on 127.0.0.1:9999", "Logger should have recorded the listening address")
+	
+	found := false
+	for _, l := range ml.CapturedLogs {
+		if contains := fmt.Sprintf("listening on 127.0.0.1:9999"); contains != "" {
+			if strings.Contains(l, "listening on 127.0.0.1:9999") {
+				found = true
+				break
+			}
+		}
+	}
+	assert.True(t, found, "Logger should have recorded the TCP listening address")
 
 	// 6. Shutdown server
 	srv.Stop()

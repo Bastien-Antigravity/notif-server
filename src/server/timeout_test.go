@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,15 +40,20 @@ func TestIdleTimeoutFix(t *testing.T) {
 	}()
 	time.Sleep(500 * time.Millisecond)
 
-	// 3. Connect Client with a 30s timeout (to allow our 6s test)
-	client, err := factory.CreateWithConfig("tcp-hello", "127.0.0.1:9998", factory.SocketConfig{
-		PublicIP: "127.0.0.1",
-		Deadline: 30 * time.Second,
-	}, "client", true)
+	// 3. Connect and wait
+	client, err := factory.Create("tcp-hello", "127.0.0.1:9998", "127.0.0.1", "client", true)
 	if err != nil {
-		t.Fatalf("Client failed to connect: %v", err)
+		t.Fatalf("Failed to connect: %v", err)
 	}
-	defer client.Close()
+
+	found := false
+	for _, l := range ml.CapturedLogs {
+		if strings.Contains(l, "listening on 127.0.0.1:9998") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Logger should have recorded the TCP listening address")
 
 	// Handler for serialization
 	handler := notifie.NewNotifHandler("test", conf)
