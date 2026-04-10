@@ -14,10 +14,10 @@ capabilities:
         port: "8888"
     log_server:
         ip: ${LS_IP:127.0.0.2}
-        port: ${LS_PORT:"9020"}
+        port: ${LS_PORT:9020}
     notif_server:
         ip: ${NT_IP:127.0.0.2}
-        port: ${NT_PORT:"1026"}
+        port: ${NT_PORT:1026}
     scheduler:
         ip: 127.0.0.2
         port: "5001"

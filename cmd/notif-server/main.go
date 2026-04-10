@@ -14,10 +14,10 @@ func main() {
 	fmt.Printf("Starting Notif Server...\n")
 
 	// 1. & 2. Initialize using Universal Logger
-	uniConfig, uniLog := bootstrap.Init("Notif-Server", "test", "minimal", utils.LevelInfo, false)
+	uniConfig, uniLog := bootstrap.Init("notif-server", "test", "minimal", utils.LevelInfo, false)
 
 	// Create Notifie
-	notifObject := notifie.NewNotifie(uniConfig, "NotifServer")
+	notifObject := notifie.NewNotifie(uniConfig, "notif-server")
 	uniLog.Info("Notifie '%s' initialized", notifObject.Name)
 
 	// 3. Bind local notifier
