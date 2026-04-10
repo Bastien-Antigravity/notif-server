@@ -7,16 +7,19 @@ import (
 	"sync"
 
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
+	pb "github.com/Bastien-Antigravity/notif-server/src/schemas/notif_msg"
 
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
-	distconf "github.com/Bastien-Antigravity/distributed-config"
+	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/network"
 	"github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
 type Server struct {
 	Logger        interfaces.Logger
-	Config        *distconf.Config
+	Config        *distributed_config.Config
 	Notifie       *notifie.Notifie
 	listeners     map[string]socket_interfaces.TransportConnection
 	listenersLock sync.RWMutex
@@ -27,7 +30,7 @@ type Server struct {
 // -----------------------------------------------------------------------------
 
 // NewServer creates a new Config Server.
-func NewServer(conf *distconf.Config, logger interfaces.Logger, notif *notifie.Notifie) *Server {
+func NewServer(conf *distributed_config.Config, logger interfaces.Logger, notif *notifie.Notifie) *Server {
 	return &Server{
 		Config:    conf,
 		Logger:    logger,
@@ -46,9 +49,9 @@ func (s *Server) Stop() {
 
 // -----------------------------------------------------------------------------
 
-// Start listens for incoming TCP connections.
+// Start listens for incoming TCP and gRPC connections.
 func (s *Server) Start() error {
-	// Resolve address from config capabilities using the new generic map-based approach
+	// 1. Resolve TCP address from config
 	cap, ok := s.Config.Capabilities["notif_server"].(map[string]interface{})
 	if !ok || cap["ip"] == nil || cap["port"] == nil {
 		s.Logger.Error("Config for notif-server capabilities not found or invalid in generic map")
@@ -57,18 +60,36 @@ func (s *Server) Start() error {
 
 	ip := strings.Trim(fmt.Sprintf("%v", cap["ip"]), "\"")
 	port := strings.Trim(fmt.Sprintf("%v", cap["port"]), "\"")
-	addr := fmt.Sprintf("%s:%s", ip, port)
+	tcpAddr := fmt.Sprintf("%s:%s", ip, port)
 
-	// Create a server socket using safe-socket factory
-	// We use "tcp-hello" profile which automatically handles the Handshake
+	// 2. Start gRPC Server in background
+	go func() {
+		// Use toolbox convention for gRPC port
+		ac := &toolbox_config.AppConfig{Config: s.Config}
+		grpcAddr, err := ac.GetGRPCListenAddr("notif_server")
+		if err != nil {
+			s.Logger.Error("Failed to resolve gRPC address: %v", err)
+			return
+		}
+
+		s.Logger.Info("Notification Server gRPC listening on " + grpcAddr)
+		gSrv := network.NewGRPCServer(grpcAddr)
+		pb.RegisterNotifServiceServer(gSrv.Server, s.Notifie)
+		
+		if err := gSrv.Start(); err != nil {
+			s.Logger.Error("gRPC server failed: %v", err)
+		}
+	}()
+
+	// 3. Start TCP Server
 	var err error
-	s.serverSock, err = factory.Create("tcp-hello", addr, "127.0.0.1", "server", true)
+	s.serverSock, err = factory.Create("tcp-hello", tcpAddr, "127.0.0.1", "server", true)
 	if err != nil {
-		return err // Wrap error in caller if needed, or return raw err
+		return err
 	}
 	defer s.serverSock.Close()
 
-	s.Logger.Info("Notification Server listening on " + addr)
+	s.Logger.Info("Notification Server TCP listening on " + tcpAddr)
 
 	// Background goroutine to handle shutdown signal
 	go func() {

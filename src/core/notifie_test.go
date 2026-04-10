@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,7 +26,7 @@ func (m *mockSender) SendMessage(msg, to, subject string) error {
 
 func TestNotifieMessageFlow(t *testing.T) {
 	// Initialize config for the test
-	conf := config.NewDistributedConfig("test")
+	conf := distributed_config.New("test")
 	
 	// Create Notifie instance
 	n := NewNotifie(conf, "TestParent")
@@ -54,7 +54,7 @@ func TestNotifieMessageFlow(t *testing.T) {
 }
 
 func TestRawMessageConsumption(t *testing.T) {
-	conf := config.NewDistributedConfig("test")
+	conf := distributed_config.New("test")
 	n := NewNotifie(conf, "RawTest")
 
 	mock := &mockSender{}

@@ -8,7 +8,7 @@ import (
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 	notifie_interfaces "github.com/Bastien-Antigravity/notif-server/src/interfaces"
 	factory "github.com/Bastien-Antigravity/safe-socket"
-	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +16,7 @@ import (
 
 func TestIdleTimeoutFix(t *testing.T) {
 	// 1. Setup config (using 9998 to avoid conflict)
-	conf := config.NewDistributedConfig("test")
+	conf := distributed_config.New("test")
 	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9998"}
 
 	ml := &mockLogger{}

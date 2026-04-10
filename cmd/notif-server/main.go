@@ -1,55 +1,35 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"os"
 
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/server"
 
-	utilconf "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
-	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
 	"github.com/Bastien-Antigravity/universal-logger/src/bootstrap"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
 func main() {
-	// 1. Initialize Toolbox Config
-	appConfig, err := utilconf.LoadConfig("standalone", nil)
-	if err != nil {
-		fmt.Printf("Critical Error loading config: %v\n", err)
-		os.Exit(1)
-	}
+	fmt.Printf("Starting Notif Server...\n")
 
-	// 2. Initialize Logger
-	_, appLogger := bootstrap.Init("notif-server", "standalone", "minimal", utils.LevelInfo, false)
-	defer appLogger.Close()
-
-	appLogger.Info("Bootstrapping Notif Server...")
+	// 1. & 2. Initialize using Universal Logger
+	// bootstrap.Init returns (*config.DistConfig, interfaces.Logger)
+	rawConfig, uniLog := bootstrap.Init("notif-server", "test", "minimal", utils.LevelInfo, false)
+	uniConfig := rawConfig.Config
 
 	// Create Notifie
-	notifObject := notifie.NewNotifie(appConfig.Config, "notif-server")
-	appLogger.Info(fmt.Sprintf("Notifier '%s' initialized", notifObject.Name))
+	notifObject := notifie.NewNotifie(uniConfig, "notif-server")
+	uniLog.Info("Notifie '%s' initialized", notifObject.Name)
 
 	// 3. Bind local notifier
-	appLogger.SetLocalNotifQueue(notifObject.NotifChan)
+	uniLog.SetLocalNotifQueue(notifObject.NotifChan)
 
 	// 4. Start Notification Server
-	srv := server.NewServer(appConfig.Config, appLogger, notifObject)
+	srv := server.NewServer(uniConfig, uniLog, notifObject)
 
-	go func() {
-		if err := srv.Start(); err != nil {
-			appLogger.Error(fmt.Sprintf("Server failed: %v", err))
-		}
-	}()
-
-	// 5. Graceful Shutdown via Toolbox
-	lm := lifecycle.NewManager()
-	lm.Register("Cleanup", func() error {
-		appLogger.Info("Shutting down notif-server...")
-		return nil
-	})
-
-	lm.Wait(context.Background())
+	err := srv.Start()
+	if err != nil {
+		fmt.Printf("Server failed to start/listen: %v\n", err)
+	}
 }

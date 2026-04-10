@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package notifservice;
+
+option go_package = "github.com/Bastien-Antigravity/notif-server/src/schemas/notif_msg";
+
+service NotifService {
+  rpc SendNotification (NotifRequest) returns (NotifResponse);
+}
+
+message NotifRequest {
+  string message = 1;
+  repeated string tags = 2;
+  string attachment = 3;
+}
+
+message NotifResponse {
+  bool success = 1;
+}

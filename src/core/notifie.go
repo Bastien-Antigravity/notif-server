@@ -6,8 +6,10 @@ import (
 
 	"github.com/Bastien-Antigravity/notif-server/src/interfaces"
 	"github.com/Bastien-Antigravity/notif-server/src/notifiers"
+	pb "github.com/Bastien-Antigravity/notif-server/src/schemas/notif_msg"
+	"context"
 
-	distconf "github.com/Bastien-Antigravity/distributed-config"
+	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
@@ -28,15 +30,16 @@ import (
 
 // when called by logger and if notif_server, this class is not called...
 type Notifie struct {
+	pb.UnimplementedNotifServiceServer
 	Name           string
-	config         *distconf.Config
+	config         *distributed_config.Config
 	TagToSenderMap map[string]interfaces.NotifSenderInterface
 	NotifChan      chan *utils.NotifMessage
 	RawNotifChan   chan []byte
 }
 
 // This class is called by logger only with local notifie or notif_server
-func NewNotifie(conf *distconf.Config, parentName string) *Notifie {
+func NewNotifie(conf *distributed_config.Config, parentName string) *Notifie {
 	curNotifie := &Notifie{
 		Name:           parentName,
 		config:         conf,
@@ -175,6 +178,17 @@ func (notifie *Notifie) processMessage() {
 			}
 		}
 	}
+}
+
+// SendNotification implements pb.NotifServiceServer
+func (notifie *Notifie) SendNotification(ctx context.Context, req *pb.NotifRequest) (*pb.NotifResponse, error) {
+	msg := &utils.NotifMessage{
+		Message:    req.Message,
+		Tags:       req.Tags,
+		Attachment: req.Attachment,
+	}
+	notifie.NotifChan <- msg
+	return &pb.NotifResponse{Success: true}, nil
 }
 
 // Notifie

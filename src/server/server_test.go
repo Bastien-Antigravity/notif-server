@@ -7,7 +7,7 @@ import (
 
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 	factory "github.com/Bastien-Antigravity/safe-socket"
-	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 	"github.com/stretchr/testify/assert"
@@ -44,7 +44,7 @@ func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
 
 func TestServerConnection(t *testing.T) {
 	// 1. Setup config for a test server
-	conf := config.NewDistributedConfig("test")
+	conf := distributed_config.New("test")
 	// Use port 9999 for integration test
 	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9999"}
 
