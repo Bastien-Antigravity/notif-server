@@ -2,8 +2,8 @@ capnproto.org/go/capnp/v3 v3.1.0-alpha.2 h1:93ISpqHf2/3WQlfrBP0tT8Dg/RQc3uq6DV36
 capnproto.org/go/capnp/v3 v3.1.0-alpha.2/go.mod h1:2vT5D2dtG8sJGEoEKU17e+j7shdaYp1Myl8X03B3hmc=
 github.com/Bastien-Antigravity/distributed-config v1.5.3 h1:S8baOgnq7NlexKFM90qQ6trXfc37QYw1TMgBgn3/Ayc=
 github.com/Bastien-Antigravity/distributed-config v1.5.3/go.mod h1:WWsBze+JsqMLEZk5v0b8AvNp6uJtGEfcpaFTJpUCfZ0=
-github.com/Bastien-Antigravity/flexible-logger v1.0.7 h1:SmqhWgibpQrx9rFekuA+XJ0vOPQoi1fdFJEUIWZLGng=
-github.com/Bastien-Antigravity/flexible-logger v1.0.7/go.mod h1:7BK98RNLDby4XGbwt1Men3lLq6AeGh+MXYMhEx5H/WY=
+github.com/Bastien-Antigravity/flexible-logger v1.0.9 h1:0QrljUWonlQfQfaHqPZyfYLUT5s3bV0O0n7jEbYuvGk=
+github.com/Bastien-Antigravity/flexible-logger v1.0.9/go.mod h1:GTdrcGT2U0WecVhAx4e6agqCy2URjLCKJ+Nc2b1+0co=
 github.com/Bastien-Antigravity/safe-socket v1.6.0 h1:KeBvCs+Dzo5GY0uNsLGU/5TOruZ2KojNe4VwORNsIGg=
 github.com/Bastien-Antigravity/safe-socket v1.6.0/go.mod h1:W7F+01wXkSmZ7y3X04BqQ3+IzU/9ilHiLMa/iQdpv/8=
 github.com/Bastien-Antigravity/universal-logger v1.1.4 h1:2jEgi71+tNikfIfhRKvK3Wte4zamenyYTZh8huBLfcU=
