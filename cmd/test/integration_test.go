@@ -47,7 +47,7 @@ func (m *mockSender) SendMessage(msg, to, subject string) error {
 func TestE2EFlow(t *testing.T) {
 	// 1. Setup Configuration
 	conf := config.NewDistributedConfig("test")
-	conf.Capabilities["NotifServer"] = map[string]interface{}{"IP": "127.0.0.1", "Port": "10001"}
+	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "10001"}
 
 	// 2. Initialize Components
 	ml := &mockLogger{}

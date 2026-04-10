@@ -17,7 +17,7 @@ import (
 func TestIdleTimeoutFix(t *testing.T) {
 	// 1. Setup config (using 9998 to avoid conflict)
 	conf := config.NewDistributedConfig("test")
-	conf.Capabilities["NotifServer"] = map[string]interface{}{"IP": "127.0.0.1", "Port": "9998"}
+	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9998"}
 
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)

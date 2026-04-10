@@ -46,7 +46,7 @@ func TestServerConnection(t *testing.T) {
 	// 1. Setup config for a test server
 	conf := config.NewDistributedConfig("test")
 	// Use port 9999 for integration test
-	conf.Capabilities["NotifServer"] = map[string]interface{}{"IP": "127.0.0.1", "Port": "9999"}
+	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9999"}
 
 	// 2. Initialize dependencies
 	ml := &mockLogger{}
