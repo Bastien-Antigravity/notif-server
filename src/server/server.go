@@ -10,11 +10,11 @@ import (
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
 	"github.com/Bastien-Antigravity/universal-logger/src/config"
-	"github.com/Bastien-Antigravity/universal-logger/src/logger"
+	"github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
 type Server struct {
-	Logger        *logger.UniLog
+	Logger        interfaces.Logger
 	Config        *config.DistConfig
 	Notifie       *notifie.Notifie
 	listeners     map[string]socket_interfaces.TransportConnection
@@ -26,7 +26,7 @@ type Server struct {
 // -----------------------------------------------------------------------------
 
 // NewServer creates a new Config Server.
-func NewServer(conf *config.DistConfig, logger *logger.UniLog, notif *notifie.Notifie) *Server {
+func NewServer(conf *config.DistConfig, logger interfaces.Logger, notif *notifie.Notifie) *Server {
 	return &Server{
 		Config:    conf,
 		Logger:    logger,

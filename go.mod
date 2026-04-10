@@ -5,7 +5,7 @@ go 1.25.4
 require (
 	capnproto.org/go/capnp/v3 v3.1.0-alpha.2
 	github.com/Bastien-Antigravity/safe-socket v1.6.0
-	github.com/Bastien-Antigravity/universal-logger v1.0.7
+	github.com/Bastien-Antigravity/universal-logger v1.1.4
 	github.com/stretchr/testify v1.11.1
 )
 
