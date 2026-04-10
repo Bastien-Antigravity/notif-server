@@ -10,13 +10,13 @@ import (
 
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
-	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	distconf "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
 type Server struct {
 	Logger        interfaces.Logger
-	Config        *config.DistConfig
+	Config        *distconf.Config
 	Notifie       *notifie.Notifie
 	listeners     map[string]socket_interfaces.TransportConnection
 	listenersLock sync.RWMutex
@@ -27,7 +27,7 @@ type Server struct {
 // -----------------------------------------------------------------------------
 
 // NewServer creates a new Config Server.
-func NewServer(conf *config.DistConfig, logger interfaces.Logger, notif *notifie.Notifie) *Server {
+func NewServer(conf *distconf.Config, logger interfaces.Logger, notif *notifie.Notifie) *Server {
 	return &Server{
 		Config:    conf,
 		Logger:    logger,

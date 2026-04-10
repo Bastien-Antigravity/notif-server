@@ -7,7 +7,7 @@ import (
 	"github.com/Bastien-Antigravity/notif-server/src/interfaces"
 	"github.com/Bastien-Antigravity/notif-server/src/notifiers"
 
-	"github.com/Bastien-Antigravity/universal-logger/src/config"
+	distconf "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
@@ -29,14 +29,14 @@ import (
 // when called by logger and if notif_server, this class is not called...
 type Notifie struct {
 	Name           string
-	config         *config.DistConfig
+	config         *distconf.Config
 	TagToSenderMap map[string]interfaces.NotifSenderInterface
 	NotifChan      chan *utils.NotifMessage
 	RawNotifChan   chan []byte
 }
 
 // This class is called by logger only with local notifie or notif_server
-func NewNotifie(conf *config.DistConfig, parentName string) *Notifie {
+func NewNotifie(conf *distconf.Config, parentName string) *Notifie {
 	curNotifie := &Notifie{
 		Name:           parentName,
 		config:         conf,
