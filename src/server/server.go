@@ -65,7 +65,7 @@ func (s *Server) Start() error {
 		}
 
 		s.Logger.Info("Notification Server gRPC listening on " + grpcAddr)
-		gSrv := network.NewGRPCServer(grpcAddr)
+		gSrv := network.NewGRPCServerWithLogger(grpcAddr, s.Logger)
 		pb.RegisterNotifServiceServer(gSrv.Server, s.Notifie)
 		
 		if err := gSrv.Start(); err != nil {

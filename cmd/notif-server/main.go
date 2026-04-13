@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	appConfig, err := utilconf.LoadConfig("test", nil)
+	appConfig, err := utilconf.LoadConfigWithLogger("test", nil, nil)
 	if err != nil {
 		fmt.Printf("Critical Error loading config: %v\n", err)
 		os.Exit(1)
@@ -30,6 +30,9 @@ func main() {
 		InitialLogLevel: utils.LevelInfo,
 		ExistingConfig:  &uniconf.DistConfig{Config: appConfig.Config},
 	})
+
+	// Inject the logger back into the appConfig so toolbox can use it
+	appConfig.Logger = uniLog
 
 	uniLog.Info("Starting Notif Server...")
 
@@ -50,7 +53,7 @@ func main() {
 	}()
 
 	// 5. Graceful Shutdown via Toolbox
-	lm := lifecycle.NewManager()
+	lm := lifecycle.NewManagerWithLogger(uniLog)
 	lm.Register("NotificationServer", func() error {
 		uniLog.Info("Shutting down Notification Server...")
 		srv.Stop()
