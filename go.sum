@@ -8,8 +8,8 @@ github.com/Bastien-Antigravity/microservice-toolbox/go v1.0.4 h1:64Ms4dH4zZ/cwqu
 github.com/Bastien-Antigravity/microservice-toolbox/go v1.0.4/go.mod h1:c8WuWF2mNDtBuvVIXB72zzsdAkBIv+2me6V7DhehgNg=
 github.com/Bastien-Antigravity/safe-socket v1.7.2 h1:Mk9fXh78WrY1I2MOkqJ7Y1A5aIMM6hvZZTQfW/+eQI8=
 github.com/Bastien-Antigravity/safe-socket v1.7.2/go.mod h1:W7F+01wXkSmZ7y3X04BqQ3+IzU/9ilHiLMa/iQdpv/8=
-github.com/Bastien-Antigravity/universal-logger v1.1.10 h1:FrPSK2N7YH/OlqogBMMFiN1v9HIjSITLdSX8D4gkzmg=
-github.com/Bastien-Antigravity/universal-logger v1.1.10/go.mod h1:dYu61mAvkjK8PLBJ1bdfL25pM8AWCH8EG87zdHB5A+c=
+github.com/Bastien-Antigravity/universal-logger v1.1.11 h1:bp5dveLHn22CgmdkEL9svBXvKe72TMThekJzM5xcww0=
+github.com/Bastien-Antigravity/universal-logger v1.1.11/go.mod h1:dYu61mAvkjK8PLBJ1bdfL25pM8AWCH8EG87zdHB5A+c=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 h1:d5EKgQfRQvO97jnISfR89AiCCCJMwMFoSxUiU0OGCRU=

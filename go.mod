@@ -7,7 +7,7 @@ require (
 	github.com/Bastien-Antigravity/distributed-config v1.6.1
 	github.com/Bastien-Antigravity/microservice-toolbox/go v1.0.4
 	github.com/Bastien-Antigravity/safe-socket v1.7.2
-	github.com/Bastien-Antigravity/universal-logger v1.1.10
+	github.com/Bastien-Antigravity/universal-logger v1.1.11
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
