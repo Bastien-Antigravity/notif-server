@@ -1,7 +1,6 @@
 package notifie
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/Bastien-Antigravity/notif-server/src/interfaces"
@@ -10,6 +9,7 @@ import (
 	"context"
 
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
@@ -33,19 +33,26 @@ type Notifie struct {
 	pb.UnimplementedNotifServiceServer
 	Name           string
 	config         *distributed_config.Config
+	Logger         log_interfaces.Logger
 	TagToSenderMap map[string]interfaces.NotifSenderInterface
 	NotifChan      chan *utils.NotifMessage
 	RawNotifChan   chan []byte
 }
 
 // This class is called by logger only with local notifie or notif_server
-func NewNotifie(conf *distributed_config.Config, parentName string) *Notifie {
+func NewNotifie(conf *distributed_config.Config, logger log_interfaces.Logger, parentName string) *Notifie {
 	curNotifie := &Notifie{
 		Name:           parentName,
 		config:         conf,
+		Logger:         logger,
 		NotifChan:      make(chan *utils.NotifMessage),
 		RawNotifChan:   make(chan []byte),
 		TagToSenderMap: make(map[string]interfaces.NotifSenderInterface),
+	}
+
+	// Add identification metadata
+	if curNotifie.Logger != nil {
+		curNotifie.Logger.AddMetadata("component", "notifie")
 	}
 	// set callback to init config
 	// Assuming distributed-config has a similar mechanism or we call loadNotifSender directly
@@ -77,7 +84,9 @@ func (notifie *Notifie) ConsumeRawMessages() {
 	for rawData := range notifie.RawNotifChan {
 		msg, err := DeserializeNotifMsg(rawData)
 		if err != nil {
-			fmt.Printf("Error deserializing raw message: %v\n", err)
+			if notifie.Logger != nil {
+				notifie.Logger.Error("Error deserializing raw message: %v", err)
+			}
 			continue
 		}
 		notifie.NotifChan <- msg
@@ -91,8 +100,9 @@ func (notifie *Notifie) LoadNotifSender(notifiersConf map[string]map[string]stri
 	if confTele, ok := notifiersConf["TELEGRAM"]; ok {
 		telegram, telegramErrorList := notifiers.NewTelegramSender(confTele, "TELEGRAM")
 		if telegramErrorList != "" {
-			// errorList = append(errorList, telegramErrorList)
-			fmt.Printf("Error loading Telegram sender: %s\n", telegramErrorList)
+			if notifie.Logger != nil {
+				notifie.Logger.Error("Error loading Telegram sender: %s", telegramErrorList)
+			}
 		} else {
 			for _, logLevel := range strings.Split(telegram.GetLogLevel(), ",") {
 				logLevel = strings.TrimSpace(logLevel)
@@ -109,7 +119,9 @@ func (notifie *Notifie) LoadNotifSender(notifiersConf map[string]map[string]stri
 	if confDisco, ok := notifiersConf["DISCORD"]; ok {
 		discord, discordErrorList := notifiers.NewDiscordSender(confDisco, "DISCORD")
 		if discordErrorList != "" {
-			fmt.Printf("Error loading Discord sender: %s\n", discordErrorList)
+			if notifie.Logger != nil {
+				notifie.Logger.Error("Error loading Discord sender: %s", discordErrorList)
+			}
 		} else {
 			for _, logLevel := range strings.Split(discord.GetLogLevel(), ",") {
 				logLevel = strings.TrimSpace(logLevel)
@@ -126,7 +138,9 @@ func (notifie *Notifie) LoadNotifSender(notifiersConf map[string]map[string]stri
 	if confMatrix, ok := notifiersConf["MATRIX"]; ok {
 		matrix, matrixErrorList := notifiers.NewMatrixSender(confMatrix, "MATRIX")
 		if matrixErrorList != "" {
-			fmt.Printf("Error loading Matrix sender: %s\n", matrixErrorList)
+			if notifie.Logger != nil {
+				notifie.Logger.Error("Error loading Matrix sender: %s", matrixErrorList)
+			}
 		} else {
 			for _, logLevel := range strings.Split(matrix.GetLogLevel(), ",") {
 				logLevel = strings.TrimSpace(logLevel)
@@ -143,7 +157,9 @@ func (notifie *Notifie) LoadNotifSender(notifiersConf map[string]map[string]stri
 	if confGmail, ok := notifiersConf["GMAIL"]; ok {
 		gmail, gmailErrorList := notifiers.NewGmailSender(confGmail, "GMAIL")
 		if gmailErrorList != "" {
-			fmt.Printf("Error loading Gmail sender: %s\n", gmailErrorList)
+			if notifie.Logger != nil {
+				notifie.Logger.Error("Error loading Gmail sender: %s", gmailErrorList)
+			}
 		} else {
 			for _, logLevel := range strings.Split(gmail.GetLogLevel(), ",") {
 				logLevel = strings.TrimSpace(logLevel)

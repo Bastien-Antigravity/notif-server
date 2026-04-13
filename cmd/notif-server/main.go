@@ -16,8 +16,6 @@ import (
 )
 
 func main() {
-	fmt.Printf("Starting Notif Server...\n")
-
 	appConfig, err := utilconf.LoadConfig("test", nil)
 	if err != nil {
 		fmt.Printf("Critical Error loading config: %v\n", err)
@@ -33,8 +31,10 @@ func main() {
 		ExistingConfig:  &uniconf.DistConfig{Config: appConfig.Config},
 	})
 
-	// Create Notifie
-	notifObject := notifie.NewNotifie(appConfig.Config, "notif-server")
+	uniLog.Info("Starting Notif Server...")
+
+	// Create Notifie with injected logger
+	notifObject := notifie.NewNotifie(appConfig.Config, uniLog, "notif-server")
 	uniLog.Info("Notifie '%s' initialized", notifObject.Name)
 
 	// 3. Bind local notifier
