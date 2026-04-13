@@ -34,7 +34,7 @@ go mod download
 ### Running the Server
 
 ```bash
-go run cmd/main/main.go
+go run cmd/notif-server/main.go
 ```
 
 ## Configuration

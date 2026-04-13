@@ -11,6 +11,7 @@ import (
 	utilconf "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
 	"github.com/Bastien-Antigravity/universal-logger/src/bootstrap"
+	uniconf "github.com/Bastien-Antigravity/universal-logger/src/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
@@ -23,12 +24,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 1. & 2. Initialize using Universal Logger
-	// bootstrap.Init returns (*config.DistConfig, interfaces.Logger)
-	rawConfig, uniLog := bootstrap.Init("notif-server", "test", "minimal", utils.LevelInfo, false)
+	// 1. & 2. Initialize using Universal Logger with Injection
+	// We inject the toolbox-loaded config to avoid double initialization
+	_, uniLog := bootstrap.InitWithOptions(bootstrap.BootstrapOptions{
+		Name:            "notif-server",
+		LoggerProfile:   "minimal",
+		InitialLogLevel: utils.LevelInfo,
+		ExistingConfig:  &uniconf.DistConfig{Config: appConfig.Config},
+	})
 
 	// Create Notifie
-	notifObject := notifie.NewNotifie(rawConfig.Config, "notif-server")
+	notifObject := notifie.NewNotifie(appConfig.Config, "notif-server")
 	uniLog.Info("Notifie '%s' initialized", notifObject.Name)
 
 	// 3. Bind local notifier
