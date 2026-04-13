@@ -54,7 +54,7 @@ func TestE2EFlow(t *testing.T) {
 	// 2. Initialize Components
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
-	nt := notifie.NewNotifie(conf, "E2E-Integration")
+	nt := notifie.NewNotifie(conf, ul, "E2E-Integration")
 	
 	// Register a mock sender to capture the final output
 	ms := &mockSender{received: make(chan string, 1)}

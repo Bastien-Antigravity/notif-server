@@ -29,7 +29,7 @@ func TestNotifieMessageFlow(t *testing.T) {
 	conf := distributed_config.New("test")
 	
 	// Create Notifie instance
-	n := NewNotifie(conf, "TestParent")
+	n := NewNotifie(conf, nil, "TestParent")
 
 	// Create and register mock sender
 	mock := &mockSender{}
@@ -55,7 +55,7 @@ func TestNotifieMessageFlow(t *testing.T) {
 
 func TestRawMessageConsumption(t *testing.T) {
 	conf := distributed_config.New("test")
-	n := NewNotifie(conf, "RawTest")
+	n := NewNotifie(conf, nil, "RawTest")
 
 	mock := &mockSender{}
 	n.TagToSenderMap["rawTag"] = mock

@@ -55,7 +55,7 @@ func TestServerConnection(t *testing.T) {
 	// 2. Initialize dependencies
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
-	nt := notifie.NewNotifie(conf, "TestServer")
+	nt := notifie.NewNotifie(conf, ul, "TestServer")
 	ac := &toolbox_config.AppConfig{Config: conf}
 	srv := NewServer(ac, ul, nt)
 
