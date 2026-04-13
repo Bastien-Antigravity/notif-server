@@ -10,6 +10,7 @@ import (
 	notifie_interfaces "github.com/Bastien-Antigravity/notif-server/src/interfaces"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +32,8 @@ func TestIdleTimeoutFix(t *testing.T) {
 	}
 	go nt.ConsumeRawMessages()
 
-	srv := NewServer(conf, ul, nt)
+	ac := &toolbox_config.AppConfig{Config: conf}
+	srv := NewServer(ac, ul, nt)
 
 	// 2. Start server
 	done := make(chan error, 1)

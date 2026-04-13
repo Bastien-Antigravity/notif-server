@@ -1,9 +1,7 @@
 package server
 
 import (
-	"fmt"
 	"os"
-	"strings"
 	"sync"
 
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
@@ -11,7 +9,6 @@ import (
 
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/network"
 	"github.com/Bastien-Antigravity/universal-logger/src/interfaces"
@@ -19,7 +16,7 @@ import (
 
 type Server struct {
 	Logger        interfaces.Logger
-	Config        *distributed_config.Config
+	AppConfig     *toolbox_config.AppConfig
 	Notifie       *notifie.Notifie
 	listeners     map[string]socket_interfaces.TransportConnection
 	listenersLock sync.RWMutex
@@ -29,10 +26,10 @@ type Server struct {
 
 // -----------------------------------------------------------------------------
 
-// NewServer creates a new Config Server.
-func NewServer(conf *distributed_config.Config, logger interfaces.Logger, notif *notifie.Notifie) *Server {
+// NewServer creates a new Notification Server.
+func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *notifie.Notifie) *Server {
 	return &Server{
-		Config:    conf,
+		AppConfig: ac,
 		Logger:    logger,
 		Notifie:   notif,
 		listeners: make(map[string]socket_interfaces.TransportConnection),
@@ -51,22 +48,17 @@ func (s *Server) Stop() {
 
 // Start listens for incoming TCP and gRPC connections.
 func (s *Server) Start() error {
-	// 1. Resolve TCP address from config
-	cap, ok := s.Config.Capabilities["notif_server"].(map[string]interface{})
-	if !ok || cap["ip"] == nil || cap["port"] == nil {
-		s.Logger.Error("Config for notif-server capabilities not found or invalid in generic map")
+	// 1. Resolve TCP address from config using Toolbox
+	tcpAddr, err := s.AppConfig.GetListenAddr("notif_server")
+	if err != nil {
+		s.Logger.Error("Failed to resolve bind address: " + err.Error())
 		os.Exit(1)
 	}
-
-	ip := strings.Trim(fmt.Sprintf("%v", cap["ip"]), "\"")
-	port := strings.Trim(fmt.Sprintf("%v", cap["port"]), "\"")
-	tcpAddr := fmt.Sprintf("%s:%s", ip, port)
 
 	// 2. Start gRPC Server in background
 	go func() {
 		// Use toolbox convention for gRPC port
-		ac := &toolbox_config.AppConfig{Config: s.Config}
-		grpcAddr, err := ac.GetGRPCListenAddr("notif_server")
+		grpcAddr, err := s.AppConfig.GetGRPCListenAddr("notif_server")
 		if err != nil {
 			s.Logger.Error("Failed to resolve gRPC address: %v", err)
 			return
@@ -82,7 +74,6 @@ func (s *Server) Start() error {
 	}()
 
 	// 3. Start TCP Server
-	var err error
 	s.serverSock, err = factory.Create("tcp-hello", tcpAddr, "127.0.0.1", "server", true)
 	if err != nil {
 		return err

@@ -9,6 +9,7 @@ import (
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +40,7 @@ func (m *mockLogger) Schedule(format string, args ...any) {
 func (m *mockLogger) Report(format string, args ...any) { fmt.Printf("REPORT: "+format+"\n", args...) }
 func (m *mockLogger) Stream(format string, args ...any) { fmt.Printf("STREAM: "+format+"\n", args...) }
 func (m *mockLogger) SetLevel(level utils.Level)        {}
+func (m *mockLogger) SetCallerSkip(skip int)           {}
 func (m *mockLogger) Close()                            {}
 
 // Required by UniLog
@@ -54,7 +56,8 @@ func TestServerConnection(t *testing.T) {
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
 	nt := notifie.NewNotifie(conf, "TestServer")
-	srv := NewServer(conf, ul, nt)
+	ac := &toolbox_config.AppConfig{Config: conf}
+	srv := NewServer(ac, ul, nt)
 
 	// 3. Start server in a goroutine
 	done := make(chan error, 1)

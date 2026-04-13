@@ -8,6 +8,7 @@ import (
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/server"
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 	factory "github.com/Bastien-Antigravity/safe-socket"
@@ -31,6 +32,7 @@ func (m *mockLogger) Schedule(format string, args ...any) { fmt.Printf("SCHEDULE
 func (m *mockLogger) Report(format string, args ...any)   { fmt.Printf("REPORT: "+format+"\n", args...) }
 func (m *mockLogger) Stream(format string, args ...any)   { fmt.Printf("STREAM: "+format+"\n", args...) }
 func (m *mockLogger) SetLevel(level utils.Level)          {}
+func (m *mockLogger) SetCallerSkip(skip int)           {}
 func (m *mockLogger) Close()                              {}
 func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
 
@@ -58,7 +60,8 @@ func TestE2EFlow(t *testing.T) {
 	ms := &mockSender{received: make(chan string, 1)}
 	nt.TagToSenderMap["alert"] = ms
 
-	srv := server.NewServer(conf, ul, nt)
+	ac := &toolbox_config.AppConfig{Config: conf}
+	srv := server.NewServer(ac, ul, nt)
 
 	// 3. Start Server
 	go func() {
