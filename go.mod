@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/Bastien-Antigravity/flexible-logger v1.1.0 // indirect
+	github.com/Bastien-Antigravity/flexible-logger v1.1.3 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
