@@ -1,3 +1,12 @@
+---
+microservice: notif-server
+type: architecture
+status: active
+tags:
+  - domain/observability
+  - domain/networking
+---
+
 # Architecture Documentation
 
 This document describes the high-level architecture of the `notif-server`.

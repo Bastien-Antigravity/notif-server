@@ -1,3 +1,13 @@
+---
+microservice: notif-server
+type: repository
+status: active
+language: go
+tags:
+  - domain/observability
+  - domain/networking
+---
+
 # Notif Server
 
 **Notif Server** is a high-performance notification server written in Go. It acts as a central hub for dispatching notifications to various platforms such as Telegram, Discord, Matrix, and Gmail.
