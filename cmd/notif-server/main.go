@@ -42,9 +42,6 @@ func main() {
 	notifObject := notifie.NewNotifie(appConfig.Config, uniLog, "notif-server")
 	uniLog.Info("Notifie '%s' initialized", notifObject.Name)
 
-	// 3. Bind local notifier
-	// uniLog.SetLocalNotifQueue(notifObject.NotifChan)
-
 	// 4. Start Notification Server
 	srv := server.NewServer(appConfig, uniLog, notifObject)
 
