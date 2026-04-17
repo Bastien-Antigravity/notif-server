@@ -7,7 +7,7 @@ capabilities:
         port: "9020"
     config_server:
         ip: 127.0.0.2
-        port: "1026"
+        port: "3306"
         refresh: "300"
     notification:
         ip: 127.0.0.2

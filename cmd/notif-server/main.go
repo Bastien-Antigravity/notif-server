@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	appConfig, err := utilconf.LoadConfigWithLogger("test", nil, nil)
+	appConfig, err := utilconf.LoadConfig("test", nil)
 	if err != nil {
 		fmt.Printf("Critical Error loading config: %v\n", err)
 		os.Exit(1)
@@ -25,11 +25,13 @@ func main() {
 	// 1. & 2. Initialize using Universal Logger with Injection
 	// We inject the toolbox-loaded config to avoid double initialization
 	_, uniLog := bootstrap.InitWithOptions(bootstrap.BootstrapOptions{
-		Name:            "notif-server",
-		LoggerProfile:   "minimal",
-		InitialLogLevel: utils.LevelInfo,
-		ExistingConfig:  &uniconf.DistConfig{Config: appConfig.Config},
+		Name:             "notif-server",
+		LoggerProfile:    "standard",
+		InitialLogLevel:  utils.LevelInfo,
+		UseLocalNotifier: true,
+		ExistingConfig:   &uniconf.DistConfig{Config: appConfig.Config},
 	})
+	defer uniLog.Close()
 
 	// Inject the logger back into the appConfig so toolbox can use it
 	appConfig.Logger = uniLog
@@ -41,7 +43,7 @@ func main() {
 	uniLog.Info("Notifie '%s' initialized", notifObject.Name)
 
 	// 3. Bind local notifier
-	uniLog.SetLocalNotifQueue(notifObject.NotifChan)
+	// uniLog.SetLocalNotifQueue(notifObject.NotifChan)
 
 	// 4. Start Notification Server
 	srv := server.NewServer(appConfig, uniLog, notifObject)
