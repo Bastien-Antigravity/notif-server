@@ -5,42 +5,23 @@ import (
 	"io"
 	"time"
 
-	"github.com/Bastien-Antigravity/safe-socket/src/facade"
+	"github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
 )
-
-// -----------------------------------------------------------------------------
-func (s *Server) findHandshakeConnection(sock socket_interfaces.TransportConnection) *facade.HandshakeConnection {
-	if sock == nil {
-		return nil
-	}
-
-	// Try direct type assertion
-	if hc, ok := sock.(*facade.HandshakeConnection); ok {
-		return hc
-	}
-
-	// If it's a HeartbeatConnection, look inside
-	if hb, ok := sock.(*facade.HeartbeatConnection); ok {
-		return s.findHandshakeConnection(hb.TransportConnection)
-	}
-
-	return nil
-}
 
 // -----------------------------------------------------------------------------
 func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 	defer sock.Close()
 
 	// 1. Extract Client Identity from Handshake (Peeling wrappers if needed)
-	hc := s.findHandshakeConnection(sock)
-	if hc == nil || hc.Identity == nil {
+	identity := safesocket.GetIdentity(sock)
+	if identity == nil {
 		s.Logger.Error("Connection does not have a Handshake identity")
 		return
 	}
 
-	name, _ := hc.Identity.FromName()
-	address, _ := hc.Identity.FromAddress()
+	name, _ := identity.FromName()
+	address, _ := identity.FromAddress()
 	clientName := fmt.Sprintf("%s-%s", name, address)
 
 	s.Logger.Info(fmt.Sprintf("Client identified: %s", clientName))
