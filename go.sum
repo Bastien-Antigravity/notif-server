@@ -6,8 +6,8 @@ github.com/Bastien-Antigravity/flexible-logger v1.1.6 h1:qihqNiuulQyzAI8xoH1YjtX
 github.com/Bastien-Antigravity/flexible-logger v1.1.6/go.mod h1:lxPFzKfHH5FwCJeq26Nnpqj/6y03Hzc3W0Gbp8qREdU=
 github.com/Bastien-Antigravity/microservice-toolbox/go v1.1.2 h1:jTK6DV3iKcZWVHyX6ea1kSW+HhcnZGPczGh2SxG10Ys=
 github.com/Bastien-Antigravity/microservice-toolbox/go v1.1.2/go.mod h1:qwx3zOlNpCgB/rm+jIeeTw0ju+B89vP69tIrZGeasdA=
-github.com/Bastien-Antigravity/safe-socket v1.7.5 h1:imntb7cvM243sCgDbTfXDbgVcfAfJE0+ohY0kQfsp9g=
-github.com/Bastien-Antigravity/safe-socket v1.7.5/go.mod h1:ngCgFarvn3V+o248h48A5u+7Z4OSu2TgEMrWu3YQXe0=
+github.com/Bastien-Antigravity/safe-socket v1.8.0 h1:uyaCEmPnQ5z6nWKAW128RVIgWJqqTeWQo1NS1Af845w=
+github.com/Bastien-Antigravity/safe-socket v1.8.0/go.mod h1:ngCgFarvn3V+o248h48A5u+7Z4OSu2TgEMrWu3YQXe0=
 github.com/Bastien-Antigravity/universal-logger v1.2.0 h1:4VJbE1Q5DB2bHb3/6Flub7Y4+NA+YSOAT8dh1Pw+st4=
 github.com/Bastien-Antigravity/universal-logger v1.2.0/go.mod h1:Mod9W6wQ0H/R3HskiZU2oYg+TrQvZIoPpviYi5d7Xpk=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
