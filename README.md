@@ -16,15 +16,16 @@ It is designed to be robust, scalable, and easy to integrate with other services
 
 ## Features
 
-- **Multi-Platform Support**: Send notifications to Telegram, Discord, Matrix, and Gmail.
+- **Multi-Protocol Support**: Dual-protocol ingress via **gRPC (Protobuf)** and **TCP (Cap'n Proto)**.
+- **Multi-Platform Dispatch**: Send notifications to Telegram, Discord, Matrix, and Gmail.
 - **Tag-Based Routing**: Route messages to specific platforms based on tags (e.g., "INFO", "ALERT").
 - **High Performance**: Built with Go's concurrency model (goroutines and channels) for efficient message processing.
-- **Secure Communication**: Uses `safe-socket` for reliable and secure TCP communication.
-- **Distributed Configuration**: Configurations are managed via `distributed-config`.
+- **Secure Communication**: Uses `safe-socket` for reliable and secure profile-based TCP communication.
+- **Distributed Configuration**: Configurations and endpoints are managed via `distributed-config`.
 
 ## Architecture
 
-The server listens for incoming connections, deserializes notification messages (using Cap'n Proto definitions handled by `flexible-logger` models), and dispatches them to the configured notifiers.
+The server listens for incoming connections on both TCP and gRPC ports. It deserializes notification messages (using Cap'n Proto or Protobuf), and dispatches them to the configured notifiers. All schemas are centrally managed in `src/schemas`.
 
 ## Getting Started
 

@@ -17,10 +17,10 @@
 
 using Go = import "/go.capnp";
 @0xcd0e7dad96752db7;
-$Go.package("Notifie");
-$Go.import("govenv/pkg/common/Notifie");
+$Go.package("capnp_notifier");
+$Go.import("github.com/Bastien-Antigravity/notif-server/src/schemas/capnp");
 
-struct NotifieMsg {
+struct NotifierMsg {
   message @0 :Text;
   attachment @1 :Text = "";
   tags @2 :List(Text) = ["telegram"];

@@ -4,8 +4,8 @@ import (
 	"os"
 	"sync"
 
-	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
-	pb "github.com/Bastien-Antigravity/notif-server/src/schemas/notif_msg"
+	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
+	proto_msg "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf"
 
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
@@ -17,7 +17,7 @@ import (
 type Server struct {
 	Logger        interfaces.Logger
 	AppConfig     *toolbox_config.AppConfig
-	Notifie       *notifie.Notifie
+	Notifier      *notifier.Notifier
 	listeners     map[string]socket_interfaces.TransportConnection
 	listenersLock sync.RWMutex
 	shutdown      chan struct{}
@@ -27,11 +27,11 @@ type Server struct {
 // -----------------------------------------------------------------------------
 
 // NewServer creates a new Notification Server.
-func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *notifie.Notifie) *Server {
+func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *notifier.Notifier) *Server {
 	return &Server{
 		AppConfig: ac,
 		Logger:    logger,
-		Notifie:   notif,
+		Notifier:  notif,
 		listeners: make(map[string]socket_interfaces.TransportConnection),
 		shutdown:  make(chan struct{}),
 	}
@@ -66,7 +66,7 @@ func (s *Server) Start() error {
 
 		s.Logger.Info("Notification Server gRPC listening on " + grpcAddr)
 		gSrv := network.NewGRPCServerWithLogger(grpcAddr, s.Logger)
-		pb.RegisterNotifServiceServer(gSrv.Server, s.Notifie)
+		proto_msg.RegisterNotifServiceServer(gSrv.Server, s.Notifier)
 		
 		if err := gSrv.Start(); err != nil {
 			s.Logger.Error("gRPC server failed: %v", err)

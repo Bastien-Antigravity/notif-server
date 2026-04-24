@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
-	notifie_interfaces "github.com/Bastien-Antigravity/notif-server/src/interfaces"
+	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
+	notifier_interfaces "github.com/Bastien-Antigravity/notif-server/src/interfaces"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
@@ -24,11 +24,11 @@ func TestIdleTimeoutFix(t *testing.T) {
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
 	// Manual initialization to avoid starting processMessage goroutine which competes for NotifChan
-	nt := &notifie.Notifie{
+	nt := &notifier.Notifier{
 		Name:           "TimeoutTest",
 		NotifChan:      make(chan *utils.NotifMessage),
 		RawNotifChan:   make(chan []byte),
-		TagToSenderMap: make(map[string]notifie_interfaces.NotifSenderInterface),
+		TagToSenderMap: make(map[string]notifier_interfaces.NotifSenderInterface),
 	}
 	go nt.ConsumeRawMessages()
 
@@ -58,7 +58,7 @@ func TestIdleTimeoutFix(t *testing.T) {
 	assert.True(t, found, "Logger should have recorded the TCP listening address")
 
 	// Handler for serialization
-	handler := notifie.NewNotifHandler("test", conf)
+	handler := notifier.NewNotifHandler("test", conf)
 
 	// 4. Test Idle Timeout Refresh
 	// We will wait 3s, send a message, then wait another 3s.

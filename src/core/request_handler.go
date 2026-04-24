@@ -1,9 +1,9 @@
-package notifie
+package notifier
 
 import (
 	"fmt"
 
-	notifMsg "github.com/Bastien-Antigravity/notif-server/src/schemas/notif_msg"
+	notifMsg "github.com/Bastien-Antigravity/notif-server/src/schemas/capnp"
 
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
@@ -14,7 +14,7 @@ import (
 type NotifNcapHandler struct {
 	Name         string
 	config       *distributed_config.Config
-	notifMessage *notifMsg.NotifieMsg
+	notifMessage *notifMsg.NotifierMsg
 	memSeg       *capnplib.Segment
 	msgSerDeSer  *capnplib.Message
 }
@@ -25,7 +25,7 @@ func NewNotifHandler(name string, parentClassConfig *distributed_config.Config) 
 		panic(fmt.Sprintf("Error while trying to initialize Notif Handler :'%v'\n", err))
 	}
 
-	notifObj, err := notifMsg.NewRootNotifieMsg(memSeg)
+	notifObj, err := notifMsg.NewRootNotifierMsg(memSeg)
 	if err != nil {
 		panic(fmt.Sprintf("Error while trying to initialize Notif Handler :'%v'\n", err))
 	}
@@ -56,7 +56,7 @@ func DeserializeNotifMsg(data []byte) (*utils.NotifMessage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal packed message: %v", err)
 	}
-	goObj, err := notifMsg.ReadRootNotifieMsg(capnpMessage)
+	goObj, err := notifMsg.ReadRootNotifierMsg(capnpMessage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read root message: %v", err)
 	}

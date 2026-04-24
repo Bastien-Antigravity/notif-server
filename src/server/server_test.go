@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
+	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
@@ -55,7 +55,7 @@ func TestServerConnection(t *testing.T) {
 	// 2. Initialize dependencies
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
-	nt := notifie.NewNotifie(conf, ul, "TestServer")
+	nt := notifier.NewNotifier(conf, ul, "TestServer")
 	ac := &toolbox_config.AppConfig{Config: conf}
 	srv := NewServer(ac, ul, nt)
 

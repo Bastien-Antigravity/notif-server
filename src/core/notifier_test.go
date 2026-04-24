@@ -1,4 +1,4 @@
-package notifie
+package notifier
 
 import (
 	"testing"
@@ -24,12 +24,12 @@ func (m *mockSender) SendMessage(msg, to, subject string) error {
 	return nil
 }
 
-func TestNotifieMessageFlow(t *testing.T) {
+func TestNotifierMessageFlow(t *testing.T) {
 	// Initialize config for the test
 	conf := distributed_config.New("test")
 	
-	// Create Notifie instance
-	n := NewNotifie(conf, nil, "TestParent")
+	// Create Notifier instance
+	n := NewNotifier(conf, nil, "TestParent")
 
 	// Create and register mock sender
 	mock := &mockSender{}
@@ -41,8 +41,9 @@ func TestNotifieMessageFlow(t *testing.T) {
 		Tags:    []string{"testTag"},
 	}
 
-	// Send message
-	n.Send(msg)
+	// Notify message
+	err := n.Notify(msg)
+	assert.NoError(t, err)
 
 	// Since processing is async (goroutines), wait a bit
 	time.Sleep(150 * time.Millisecond)
@@ -55,7 +56,7 @@ func TestNotifieMessageFlow(t *testing.T) {
 
 func TestRawMessageConsumption(t *testing.T) {
 	conf := distributed_config.New("test")
-	n := NewNotifie(conf, nil, "RawTest")
+	n := NewNotifier(conf, nil, "RawTest")
 
 	mock := &mockSender{}
 	n.TagToSenderMap["rawTag"] = mock
@@ -70,7 +71,8 @@ func TestRawMessageConsumption(t *testing.T) {
 	rawData := handler.NotifNcapSerialize(originalMsg)
 
 	// Send raw data
-	n.SendRaw(rawData)
+	err := n.SendRaw(rawData)
+	assert.NoError(t, err)
 
 	// Wait for processing
 	time.Sleep(150 * time.Millisecond)

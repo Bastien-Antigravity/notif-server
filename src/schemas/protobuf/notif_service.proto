@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package notifservice;
 
-option go_package = "github.com/Bastien-Antigravity/notif-server/src/schemas/notif_msg";
+option go_package = "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf";
 
 service NotifService {
   rpc SendNotification (NotifRequest) returns (NotifResponse);
