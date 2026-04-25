@@ -64,7 +64,7 @@ func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 		rawMsg := make([]byte, n)
 		copy(rawMsg, buf[:n])
 
-		// Send to Notifie raw channel
-		s.Notifie.RawNotifChan <- rawMsg
+		// Send to Notifier raw channel
+		s.Notifier.RawNotifChan <- rawMsg
 	}
 }

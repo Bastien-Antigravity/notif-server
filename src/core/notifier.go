@@ -5,7 +5,6 @@ import (
 
 	"github.com/Bastien-Antigravity/notif-server/src/interfaces"
 	"github.com/Bastien-Antigravity/notif-server/src/notifiers"
-	capnp_msg "github.com/Bastien-Antigravity/notif-server/src/schemas/capnp"
 	proto_msg "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf"
 	"context"
 
@@ -55,7 +54,7 @@ func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, 
 	}
 
 	// Load initial config
-	curNotifier.LoadNotifSender(conf.MemConfig)
+	curNotifier.LoadNotifSender(conf.LiveConfig)
 
 	go curNotifier.processMessage()
 	go curNotifier.ConsumeRawMessages()

@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"os"
 
-	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
+	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/server"
 
-	utilconf "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
-	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
-	"github.com/Bastien-Antigravity/universal-logger/src/bootstrap"
-	uniconf "github.com/Bastien-Antigravity/universal-logger/src/config"
-	"github.com/Bastien-Antigravity/universal-logger/src/utils"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
+	unilog "github.com/Bastien-Antigravity/universal-logger/src/bootstrap"
+	unilog_config "github.com/Bastien-Antigravity/universal-logger/src/config"
+	unilog_utils "github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
 func main() {
-	appConfig, err := utilconf.LoadConfig("test", nil)
+	appConfig, err := toolbox_config.LoadConfig("test", nil)
 	if err != nil {
 		fmt.Printf("Critical Error loading config: %v\n", err)
 		os.Exit(1)
@@ -24,12 +24,12 @@ func main() {
 
 	// 1. & 2. Initialize using Universal Logger with Injection
 	// We inject the toolbox-loaded config to avoid double initialization
-	_, uniLog := bootstrap.InitWithOptions(bootstrap.BootstrapOptions{
+	_, uniLog := unilog.InitWithOptions(unilog.BootstrapOptions{
 		Name:             "notif-server",
 		LoggerProfile:    "standard",
-		InitialLogLevel:  utils.LevelInfo,
+		InitialLogLevel:  unilog_utils.LevelInfo,
 		UseLocalNotifier: true,
-		ExistingConfig:   &uniconf.DistConfig{Config: appConfig.Config},
+		ExistingConfig:   &unilog_config.DistConfig{Config: appConfig.Config},
 	})
 	defer uniLog.Close()
 
@@ -38,9 +38,9 @@ func main() {
 
 	uniLog.Info("Starting Notif Server...")
 
-	// Create Notifie with injected logger
-	notifObject := notifie.NewNotifie(appConfig.Config, uniLog, "notif-server")
-	uniLog.Info("Notifie '%s' initialized", notifObject.Name)
+	// Create Notifier with injected logger
+	notifObject := notif_core.NewNotifier(appConfig.Config, uniLog, "notif-server")
+	uniLog.Info("Notifier '%s' initialized", notifObject.Name)
 
 	// 4. Start Notification Server
 	srv := server.NewServer(appConfig, uniLog, notifObject)
@@ -52,7 +52,7 @@ func main() {
 	}()
 
 	// 5. Graceful Shutdown via Toolbox
-	lm := lifecycle.NewManagerWithLogger(uniLog)
+	lm := toolbox_lifecycle.NewManagerWithLogger(uniLog)
 	lm.Register("NotificationServer", func() error {
 		uniLog.Info("Shutting down Notification Server...")
 		srv.Stop()
