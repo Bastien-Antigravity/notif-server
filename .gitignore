@@ -1,4 +1,4 @@
-# --- Master Merged .gitignore (Global + Go + Python + Rust + IDEs) ---
+# --- Bastien-Antigravity Master Merged .gitignore ---
 
 # Global / OS
 .DS_Store
@@ -64,6 +64,10 @@ bin/
 /main
 /test
 /test_app
+/config-server
+/notif-server
+/tele-remote
+/log-server
 vendor/
 go.work
 go.work.sum
@@ -76,11 +80,12 @@ Cargo.lock
 
 # Project Specific
 config_store.json
+registry_state.json
 Recommendations.txt
 todo.txt
 ARCHITECTURE.md.bak
 zzz_memo
 
-# Ignore pickle files
-*.pkl
+# Binary / Data
 *.exe
+*.pkl
