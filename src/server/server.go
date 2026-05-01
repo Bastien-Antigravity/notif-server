@@ -51,7 +51,7 @@ func (s *Server) Start() error {
 	// 1. Resolve TCP address from config using Toolbox
 	tcpAddr, err := s.AppConfig.GetListenAddr("notif_server")
 	if err != nil {
-		s.Logger.Error("Failed to resolve bind address: " + err.Error())
+		s.Logger.Error("Failed to resolve bind address: %v", err)
 		os.Exit(1)
 	}
 
@@ -95,7 +95,7 @@ func (s *Server) Start() error {
 			case <-s.shutdown:
 				return nil
 			default:
-				s.Logger.Error("Accept error: " + err.Error())
+				s.Logger.Error("Accept error: %v", err)
 				continue
 			}
 		}

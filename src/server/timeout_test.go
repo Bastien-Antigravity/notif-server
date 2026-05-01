@@ -47,6 +47,7 @@ func TestIdleTimeoutFix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect: %v", err)
 	}
+	_ = client.SetIdleTimeout(0)
 
 	found := false
 	for _, l := range ml.CapturedLogs {

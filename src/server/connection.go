@@ -3,7 +3,6 @@ package server
 import (
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
@@ -26,15 +25,16 @@ func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 
 	s.Logger.Info(fmt.Sprintf("Client identified: %s", clientName))
 
+	// Disable all timeouts to allow the connection to remain open forever.
+	_ = sock.SetIdleTimeout(0)
+
 	// 2. Message Loop
 	// Allocation Optimization: Reuse buffer
 	// Start with 64KB (typical max UDP, reasonable for TCP config messages)
 	buf := make([]byte, 65535)
 
 	for {
-		// Refresh Deadline to prevent idle timeout (default 5s in safe-socket profiles)
-		// We use 30s as a safe default for notification streams.
-		_ = sock.SetReadDeadline(time.Now().Add(30 * time.Second))
+		// No deadline set here, allowing infinite wait on Read.
 
 		// Use Read(buf) instead of ReadMessage to reuse buffer
 		n, err := sock.Read(buf)
