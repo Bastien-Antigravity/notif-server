@@ -1,0 +1,42 @@
+name: CI Standard Pipeline
+
+on:
+  push:
+    branches: [ develop, main ]
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Go Validation (if applicable)
+      - name: Set up Go
+        if: hashFiles('go.mod') != ''
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Go Lint & Test
+        if: hashFiles('go.mod') != ''
+        run: |
+          go fmt ./...
+          go test -v ./...
+
+      # Python Validation (if applicable)
+      - name: Set up Python
+        if: hashFiles('requirements.txt') != ''
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Python Lint & Test
+        if: hashFiles('requirements.txt') != ''
+        run: |
+          pip install -r requirements.txt
+          pytest
+
+      # Sandbox Integration (Global)
+      - name: Run Sandbox Integration
+        run: echo "Triggering sandbox-testing workflow..."
+        # This would typically use a repository_dispatch or a shared action
