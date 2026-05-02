@@ -89,3 +89,37 @@ zzz_memo
 # Binary / Data
 *.exe
 *.pkl
+# 🌍 Bastien-Antigravity Global GitIgnore Template
+# Purpose: Unified noise-reduction across the fleet.
+# --- System Files ---
+desktop.ini
+# --- IDEs & Editors ---
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*~
+.fleet/
+.helix/
+# --- Build & Dependency Artifacts ---
+# Rust
+# Go
+__debug_bin
+*.test
+# Python
+.venv
+# C++
+obj/
+*.o
+*.a
+*.so
+*.out
+# --- Secrets & Config ---
+.env*
+*.pem
+*.key
+*.cert
+secrets.yaml
+# --- Project Specific Noise ---
+*.bak
+*.tmp
