@@ -27,6 +27,12 @@ It is designed to be robust, scalable, and easy to integrate with other services
 
 The server listens for incoming connections on both TCP and gRPC ports. It deserializes notification messages (using Cap'n Proto or Protobuf), and dispatches them to the configured notifiers. All schemas are centrally managed in `src/schemas`.
 
+## 🛡️ Feature Specs & Governance (BDD)
+The behavior of this microservice is governed by strict specifications in the **[[business-bdd-brain|Business-Specs Brain]]**:
+- **Tag-Based Routing**: [[FEAT-001-Tag-Based-Routing|FEAT-001: Conditional Dispatch]]
+- **Sender Integrations**: [[FEAT-002-Sender-Integrations|FEAT-002: Multi-Platform Support]]
+- **Unified Ingestion**: [[FEAT-003-Unified-Ingestion|FEAT-003: Dual Protocol Support]]
+
 ## Getting Started
 
 ### Prerequisites
