@@ -54,7 +54,7 @@ func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, 
 	}
 
 	// Load initial config
-	curNotifier.LoadNotifSender(conf.LiveConfig)
+	curNotifier.LoadNotifSender(*conf.LiveConfig.Load())
 
 	go curNotifier.processMessage()
 	go curNotifier.ConsumeRawMessages()
