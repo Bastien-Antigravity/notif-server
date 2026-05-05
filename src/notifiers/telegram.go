@@ -5,68 +5,93 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 type TelegramSender struct {
-	tag string
-	// only used for telegram
-	telegramUrl string // -> tgram://{TOKEN}/{CHAT_ID}
-	token       string
-	chatId      string
-	// Level
+	tag      string
+	apiURL   string
+	token    string
+	chatId   string
 	logLevel string
 }
 
 func NewTelegramSender(telegramConf map[string]string, confName string) (*TelegramSender, string) {
 	curError := ""
-	telegranSender := &TelegramSender{}
+	ts := &TelegramSender{}
 	if tag, ok := telegramConf["TAG"]; ok {
-		telegranSender.tag = tag
+		ts.tag = tag
 	} else {
 		curError += fmt.Sprintf("missing 'TAG' option for config '%s'\n", confName)
 	}
 	if token, ok := telegramConf["TOKEN"]; ok {
-		telegranSender.token = token
+		ts.token = token
 	} else {
 		curError += fmt.Sprintf("missing 'TOKEN' option for config '%s'\n", confName)
 	}
 	if chatId, ok := telegramConf["CHATID"]; ok {
-		telegranSender.chatId = chatId
+		ts.chatId = chatId
 	} else {
 		curError += fmt.Sprintf("missing 'CHATID' option for config '%s'\n", confName)
 	}
 	if logLevel, ok := telegramConf["LOGLEVEL"]; ok {
-		telegranSender.logLevel = logLevel
+		ts.logLevel = logLevel
 	} else {
 		curError += fmt.Sprintf("missing 'LOGLEVEL' option for config '%s'\n", confName)
 	}
+
 	if curError == "" {
-		telegranSender.telegramUrl = fmt.Sprintf("tgram://%s/%s", telegranSender.token, telegranSender.chatId)
-		return telegranSender, ""
+		// Fix: Telegram API uses https, not tgram:// scheme.
+		ts.apiURL = fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", ts.token)
+		return ts, ""
 	}
 	return nil, curError
 }
 
-func (telegramSender *TelegramSender) SendMessage(msg, notUsed, notUsedAlso string) error {
-	jsonByteMessage, err := json.Marshal(map[string]string{"chat_id": telegramSender.chatId, "text": msg})
+func (ts *TelegramSender) SendMessage(msg, notUsed, notUsedAlso string) error {
+	payload := map[string]string{
+		"chat_id": ts.chatId,
+		"text":    msg,
+	}
+	jsonByteMessage, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshall message (telegram): %v", err)
+		return fmt.Errorf("failed to marshal message (telegram): %v", err)
 	}
-	httpsResp, err := http.Post(telegramSender.telegramUrl, "application/json", bytes.NewBuffer(jsonByteMessage))
-	if err != nil {
-		return fmt.Errorf("failed to post http request (telegram): %v", err)
+
+	maxRetries := 3
+	backoff := 500 * time.Millisecond
+
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		httpsResp, err := http.Post(ts.apiURL, "application/json", bytes.NewBuffer(jsonByteMessage))
+		if err == nil {
+			defer httpsResp.Body.Close()
+			if httpsResp.StatusCode == http.StatusOK {
+				return nil
+			}
+			lastErr = fmt.Errorf("unexpected http status (telegram): %d", httpsResp.StatusCode)
+			
+			// If it's a 4xx error (other than 429), don't retry as it's likely a client error (wrong token/chatId)
+			if httpsResp.StatusCode >= 400 && httpsResp.StatusCode < 500 && httpsResp.StatusCode != 429 {
+				return lastErr
+			}
+		} else {
+			lastErr = fmt.Errorf("failed to post http request (telegram): %v", err)
+		}
+
+		if i < maxRetries-1 {
+			time.Sleep(backoff)
+			backoff *= 2
+		}
 	}
-	defer httpsResp.Body.Close()
-	if httpsResp.StatusCode != http.StatusOK {
-		return fmt.Errorf("telegram, unexpected http status (telegram): %d", httpsResp.StatusCode)
-	}
-	return nil
+
+	return fmt.Errorf("telegram send failed after %d retries: %v", maxRetries, lastErr)
 }
 
-func (t *TelegramSender) GetTag() string {
-	return t.tag
+func (ts *TelegramSender) GetTag() string {
+	return ts.tag
 }
 
-func (t *TelegramSender) GetLogLevel() string {
-	return t.logLevel
+func (ts *TelegramSender) GetLogLevel() string {
+	return ts.logLevel
 }
