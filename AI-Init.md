@@ -1,3 +1,9 @@
+---
+microservice: notif-server
+type: governance
+status: active
+---
+
 # ⚡ AI Initialization: notif-server
 
 > [!IMPORTANT] MANDATORY INITIALIZATION
