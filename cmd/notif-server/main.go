@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	appConfig, err := toolbox_config.LoadConfig("test", nil)
+	appConfig, err := toolbox_config.LoadConfig("standalone", nil)
 	if err != nil {
 		fmt.Printf("Critical Error loading config: %v\n", err)
 		os.Exit(1)
@@ -26,6 +26,7 @@ func main() {
 	// We inject the toolbox-loaded config to avoid double initialization
 	_, uniLog := unilog.InitWithOptions(unilog.BootstrapOptions{
 		Name:             "notif-server",
+		ConfigProfile:    appConfig.Profile,
 		LoggerProfile:    "standard",
 		InitialLogLevel:  unilog_utils.LevelInfo,
 		UseLocalNotifier: true,
