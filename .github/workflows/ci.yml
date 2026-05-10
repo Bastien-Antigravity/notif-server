@@ -1,4 +1,4 @@
-# [FLEET-ARCHITECT] Standardized Microservice CI
+# [FLEET-ARCHITECT] Microservice (Go:1.25, Py:3.12, Rust:1.91, C++:20)
 name: Fleet CI
 on:
   push:
