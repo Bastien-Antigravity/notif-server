@@ -1,4 +1,5 @@
 # [FLEET-ARCHITECT] Microservice (Go:1.25, Py:3.12, Rust:1.91, C++:20)
+# Sync-ID: 2026-05-11-GLOBAL-001
 name: Fleet CI
 on:
   push:
