@@ -7,6 +7,8 @@ on:
     branches: [ develop, main ]
 
 jobs:
-  fleet-ci:
-    uses: Bastien-Antigravity/fleet-operation-brain/.github/workflows/master-ci.yml@develop
+  go-ci:
+    uses: Bastien-Antigravity/fleet-operation-brain/.github/workflows/workflow-go.yml@develop
+    with:
+      working_directory: '.'
     secrets: inherit

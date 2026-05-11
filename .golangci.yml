@@ -1,0 +1,16 @@
+# Centralized Fleet golangci-lint configuration
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - staticcheck
+    - govet
+    - ineffassign
+    - typecheck
+
+issues:
+  exclude-rules:
+    - linters:
+        - staticcheck
+      text: "QF1008"
