@@ -1,14 +1,12 @@
-# Centralized Fleet golangci-lint configuration
+version: "2"
 run:
   timeout: 5m
-  version: "1"
 
 linters:
   enable:
     - staticcheck
     - govet
     - ineffassign
-    - typecheck
 
 issues:
   exclude-rules:
