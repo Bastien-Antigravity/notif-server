@@ -7,9 +7,8 @@ linters:
     - staticcheck
     - govet
     - ineffassign
-
-issues:
-  exclude-rules:
-    - linters:
-        - staticcheck
-      text: "QF1008"
+  exclusions:
+    rules:
+      - linters:
+          - staticcheck
+        text: "QF1008"
