@@ -1,6 +1,7 @@
 # Centralized Fleet golangci-lint configuration
 run:
   timeout: 5m
+  version: "1"
 
 linters:
   enable:
