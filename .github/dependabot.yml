@@ -1,3 +1,5 @@
+# [FLEET-ARCHITECT] Standardized Dependabot
+# Sync-ID: 2026-05-11-GLOBAL-001
 version: 2
 updates:
   - package-ecosystem: "gomod"
