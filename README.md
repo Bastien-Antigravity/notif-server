@@ -4,8 +4,9 @@ type: repository
 status: active
 language: go
 tags:
-  - domain/observability
-  - domain/networking
+- \'#service/notif-server\'
+  - '#domain/observability'
+  - '#domain/networking'
 ---
 
 # Notif Server
