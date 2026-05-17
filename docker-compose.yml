@@ -10,9 +10,10 @@ services:
     ports:
       - "127.0.0.2:${NT_PORT:-1026}:${NT_PORT:-1026}"
     networks:
-      - teleremote_network
+      - teleremote-network
     labels: [ com.centurylinklabs.watchtower.enable=true ]
 
 networks:
-  teleremote_network:
+  teleremote-network:
+    name: teleremote-network
     external: true
