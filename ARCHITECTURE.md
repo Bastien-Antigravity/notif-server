@@ -3,9 +3,10 @@ microservice: notif-server
 type: architecture
 status: active
 tags:
-- \'#service/notif-server\'
-  - '#domain/observability'
-  - '#domain/networking'
+- '#service/notif-server'
+- '#domain/observability'
+- '#domain/networking'
+- '#zone/3-fleet'
 ---
 
 # Architecture Documentation

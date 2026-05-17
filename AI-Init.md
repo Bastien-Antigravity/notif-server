@@ -2,6 +2,9 @@
 microservice: notif-server
 type: governance
 status: active
+tags:
+- '#service/notif-server'
+- '#zone/3-fleet'
 ---
 
 # ⚡ AI Initialization: notif-server

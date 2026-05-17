@@ -4,9 +4,10 @@ type: repository
 status: active
 language: go
 tags:
-- \'#service/notif-server\'
-  - '#domain/observability'
-  - '#domain/networking'
+- '#service/notif-server'
+- '#domain/observability'
+- '#domain/networking'
+- '#zone/3-fleet'
 ---
 
 # Notif Server
