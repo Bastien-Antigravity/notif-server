@@ -1,5 +1,17 @@
 package server
 
+/*
+ESSENTIAL PROCESS:
+Verifies the IdleTimeout behavior of the notification server.
+Ensures that the server correctly manages and refreshes connection timeouts.
+
+DATA FLOW:
+1. Initialize a test server with a mock notifier.
+2. Establish a client connection.
+3. Wait and send periodic messages.
+4. Verify that the server maintains the connection and receives all payloads.
+*/
+
 import (
 	"fmt"
 	"strings"
@@ -8,13 +20,17 @@ import (
 
 	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
 	notifier_interfaces "github.com/Bastien-Antigravity/notif-server/src/interfaces"
-	factory "github.com/Bastien-Antigravity/safe-socket"
+
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	factory "github.com/Bastien-Antigravity/safe-socket"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
+
 	"github.com/stretchr/testify/assert"
 )
+
+// -----------------------------------------------------------------------------
 
 func TestIdleTimeoutFix(t *testing.T) {
 	// 1. Setup config (using 9998 to avoid conflict)
@@ -28,7 +44,7 @@ func TestIdleTimeoutFix(t *testing.T) {
 		Name:           "TimeoutTest",
 		NotifChan:      make(chan *utils.NotifMessage),
 		RawNotifChan:   make(chan []byte),
-		TagToSenderMap: make(map[string]notifier_interfaces.NotifSenderInterface),
+		TagToSenderMap: make(map[string]notifier_interfaces.INotifSender),
 	}
 	go nt.ConsumeRawMessages()
 

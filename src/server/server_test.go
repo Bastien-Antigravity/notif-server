@@ -1,5 +1,18 @@
 package server
 
+/*
+ESSENTIAL PROCESS:
+Unit tests for the notification server core.
+Verifies listener startup, client connection, and graceful shutdown.
+
+DATA FLOW:
+1. Initialize test configuration and mock dependencies.
+2. Start the server in a background goroutine.
+3. Simulate a client connection via safe-socket.
+4. Validate server state and log output.
+5. Signal shutdown and verify termination.
+*/
+
 import (
 	"fmt"
 	"strings"
@@ -7,13 +20,17 @@ import (
 	"time"
 
 	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
-	factory "github.com/Bastien-Antigravity/safe-socket"
+
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	factory "github.com/Bastien-Antigravity/safe-socket"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
+
 	"github.com/stretchr/testify/assert"
 )
+
+// -----------------------------------------------------------------------------
 
 // mockLogger implements the underlying logger interface for UniLog
 type mockLogger struct {
@@ -43,9 +60,12 @@ func (m *mockLogger) SetLevel(level utils.Level)        {}
 func (m *mockLogger) GetLevel() utils.Level             { return utils.LevelInfo }
 func (m *mockLogger) SetCallerSkip(skip int)           {}
 func (m *mockLogger) Close()                            {}
+func (m *mockLogger) AddMetadata(key string, value any) {}
 
 // Required by UniLog
 func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
+
+// -----------------------------------------------------------------------------
 
 func TestServerConnection(t *testing.T) {
 	// 1. Setup config for a test server
@@ -78,7 +98,7 @@ func TestServerConnection(t *testing.T) {
 
 	// 5. Assertions
 	assert.NotNil(t, client, "Client should be connected")
-	
+
 	found := false
 	for _, l := range ml.CapturedLogs {
 		if contains := fmt.Sprintf("listening on 127.0.0.1:9999"); contains != "" {

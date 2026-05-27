@@ -1,5 +1,23 @@
 package main
 
+/*
+ESSENTIAL PROCESS:
+Application entry point for the notif-server.
+Initializes configuration, logging, and the core notification engine.
+Manages the server lifecycle and graceful shutdown.
+
+DATA FLOW:
+1. Load configuration from YAML/CLI.
+2. Bootstrap universal-logger with injected config.
+3. Initialize the Notifier core and worker pools.
+4. Start TCP and gRPC listeners.
+5. Wait for termination signals to trigger graceful shutdown.
+
+KEY PARAMETERS:
+- Profile: The configuration profile (e.g., standalone, production).
+- lm: Lifecycle manager for graceful service termination.
+*/
+
 import (
 	"context"
 	"fmt"
@@ -14,6 +32,8 @@ import (
 	unilog_config "github.com/Bastien-Antigravity/universal-logger/src/config"
 	unilog_utils "github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
+
+// -----------------------------------------------------------------------------
 
 func main() {
 	appConfig, err := toolbox_config.LoadConfig("standalone", nil)

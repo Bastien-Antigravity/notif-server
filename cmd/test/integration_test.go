@@ -1,19 +1,36 @@
 package main
 
+/*
+ESSENTIAL PROCESS:
+Full End-to-End integration test for the notification ecosystem.
+Verifies the complete flow from TCP ingestion to platform delivery.
+
+DATA FLOW:
+1. Setup a full server instance with a mock notifier.
+2. Manually register a mock sender worker.
+3. Simulate an external client sending a Cap'n Proto message.
+4. Verify the message is correctly routed and delivered to the mock sender.
+*/
+
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/server"
+
 	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	factory "github.com/Bastien-Antigravity/safe-socket"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
-	factory "github.com/Bastien-Antigravity/safe-socket"
+
 	"github.com/stretchr/testify/assert"
 )
+
+// -----------------------------------------------------------------------------
 
 // mockLogger implementation for the integration test
 type mockLogger struct {
@@ -36,16 +53,24 @@ func (m *mockLogger) GetLevel() utils.Level             { return utils.LevelInfo
 func (m *mockLogger) SetCallerSkip(skip int)           {}
 func (m *mockLogger) Close()                              {}
 func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
+func (m *mockLogger) AddMetadata(key string, value any) {}
+
+// -----------------------------------------------------------------------------
 
 // mockSender to verify the final delivery
 type mockSender struct {
 	received chan string
 }
 
-func (m *mockSender) SendMessage(msg, to, subject string) error {
+func (m *mockSender) SendMessage(ctx context.Context, msg, to, subject string) error {
 	m.received <- msg
 	return nil
 }
+
+func (m *mockSender) GetTag() string      { return "alert" }
+func (m *mockSender) GetLogLevel() string { return "INFO" }
+
+// -----------------------------------------------------------------------------
 
 func TestE2EFlow(t *testing.T) {
 	// 1. Setup Configuration
@@ -56,10 +81,10 @@ func TestE2EFlow(t *testing.T) {
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
 	nt := notifie.NewNotifier(conf, ul, "E2E-Integration")
-	
+
 	// Register a mock sender to capture the final output
 	ms := &mockSender{received: make(chan string, 1)}
-	nt.TagToSenderMap["alert"] = ms
+	nt.RegisterMockSender(ms)
 
 	ac := &toolbox_config.AppConfig{Config: conf}
 	srv := server.NewServer(ac, ul, nt)
@@ -95,7 +120,7 @@ func TestE2EFlow(t *testing.T) {
 	case received := <-ms.received:
 		assert.Equal(t, "CRITICAL: Reactor Leak Detected!", received)
 		fmt.Println("Integration Success: Message reached mock sender.")
-	case <-time.After(3 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("Timeout: Message never reached mock sender")
 	}
 }

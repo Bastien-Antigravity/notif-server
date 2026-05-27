@@ -1,5 +1,21 @@
 package server
 
+/*
+ESSENTIAL PROCESS:
+Handles individual client connections and stable identity resolution.
+Implements the persistent message loop for TCP ingestion.
+
+DATA FLOW:
+1. Extract client identity and resolve stable hostname.
+2. Enforce idle timeouts to prune zombie connections.
+3. Read framed messages using ReadMessage().
+4. Forward raw binary data to the Notifier core.
+
+KEY PARAMETERS:
+- sock: The active transport connection from safe-socket.
+- clientName: Resolved stable identity of the connected source.
+*/
+
 import (
 	"fmt"
 	"io"
@@ -11,6 +27,7 @@ import (
 )
 
 // -----------------------------------------------------------------------------
+
 func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 	defer sock.Close()
 
@@ -23,7 +40,7 @@ func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 
 	name, _ := identity.FromName()
 	address, _ := identity.FromAddress()
-	
+
 	// Stable Identity Resolution: Strip port from address if present
 	host, _, err := net.SplitHostPort(address)
 	if err == nil {

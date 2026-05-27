@@ -1,5 +1,20 @@
 package notifiers
 
+/*
+ESSENTIAL PROCESS:
+Implements the Telegram notification sender.
+Handles authentication with the Telegram Bot API and executes message delivery.
+
+DATA FLOW:
+1. Receives message payload from the core worker.
+2. Marshals the message into JSON.
+3. Posts to the Telegram sendMessage endpoint with exponential backoff.
+
+KEY PARAMETERS:
+- apiURL: The full Telegram Bot API URL including token.
+- chatId: Target Telegram chat or channel ID.
+*/
+
 import (
 	"bytes"
 	"context"
@@ -16,6 +31,8 @@ type TelegramSender struct {
 	chatId   string
 	logLevel string
 }
+
+// -----------------------------------------------------------------------------
 
 func NewTelegramSender(telegramConf map[string]string, confName string) (*TelegramSender, string) {
 	curError := ""
@@ -49,6 +66,8 @@ func NewTelegramSender(telegramConf map[string]string, confName string) (*Telegr
 	return nil, curError
 }
 
+// -----------------------------------------------------------------------------
+
 func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	payload := map[string]string{
 		"chat_id": ts.chatId,
@@ -79,7 +98,7 @@ func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsed
 				return nil
 			}
 			lastErr = fmt.Errorf("unexpected http status (telegram): %d", httpsResp.StatusCode)
-			
+
 			if httpsResp.StatusCode >= 400 && httpsResp.StatusCode < 500 && httpsResp.StatusCode != 429 {
 				return lastErr
 			}
@@ -103,9 +122,13 @@ func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsed
 	return fmt.Errorf("telegram send failed after %d retries: %v", maxRetries, lastErr)
 }
 
+// -----------------------------------------------------------------------------
+
 func (ts *TelegramSender) GetTag() string {
 	return ts.tag
 }
+
+// -----------------------------------------------------------------------------
 
 func (ts *TelegramSender) GetLogLevel() string {
 	return ts.logLevel

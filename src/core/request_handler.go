@@ -1,5 +1,19 @@
 package notifier
 
+/*
+ESSENTIAL PROCESS:
+Handles serialization and deserialization of notification messages using Cap'n Proto.
+Provides a high-performance binary encoding for cross-process communication.
+
+DATA FLOW:
+1. Sources call NotifNcapSerialize to convert Go structs to binary.
+2. Sink calls DeserializeNotifMsg to reconstruct Go structs from binary data.
+
+KEY PARAMETERS:
+- notifMessage: The underlying Cap'n Proto message object.
+- memSeg: Memory segment used for allocation during serialization.
+*/
+
 import (
 	"fmt"
 
@@ -19,6 +33,8 @@ type NotifNcapHandler struct {
 	msgSerDeSer  *capnplib.Message
 }
 
+// -----------------------------------------------------------------------------
+
 func NewNotifHandler(name string, parentClassConfig *distributed_config.Config) *NotifNcapHandler {
 	capnplibMsg, memSeg, err := capnplib.NewMessage(capnplib.SingleSegment(nil))
 	if err != nil {
@@ -32,7 +48,7 @@ func NewNotifHandler(name string, parentClassConfig *distributed_config.Config) 
 	return &NotifNcapHandler{Name: name, config: parentClassConfig, memSeg: memSeg, notifMessage: &notifObj, msgSerDeSer: capnplibMsg}
 }
 
-var capnpList capnplib.TextList
+// -----------------------------------------------------------------------------
 
 func (notifNcapHandler *NotifNcapHandler) NotifNcapSerialize(notifMessage *utils.NotifMessage) []byte {
 	notifNcapHandler.notifMessage.SetMessage_(notifMessage.Message)
@@ -48,6 +64,8 @@ func (notifNcapHandler *NotifNcapHandler) NotifNcapSerialize(notifMessage *utils
 	byteMsg, _ := notifNcapHandler.msgSerDeSer.MarshalPacked()
 	return byteMsg
 }
+
+// -----------------------------------------------------------------------------
 
 // DeserializeNotifMsg parses a raw byte slice (Cap'n Proto packed) into a NotifMessage.
 // This helper is exposed for servers or other components using this library.
@@ -86,6 +104,8 @@ func DeserializeNotifMsg(data []byte) (*utils.NotifMessage, error) {
 
 	return notifMessage, nil
 }
+
+// -----------------------------------------------------------------------------
 
 func (notifNcapHandler *NotifNcapHandler) NotifNcapDeSerialize(data []byte) *utils.NotifMessage {
 	msg, _ := DeserializeNotifMsg(data)

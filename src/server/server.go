@@ -1,8 +1,22 @@
 package server
 
+/*
+ESSENTIAL PROCESS:
+Initializes and manages the dual-protocol notification server (TCP & gRPC).
+Coordinates between the ingestion layer and the Notifier core.
+
+DATA FLOW:
+1. Server starts and binds to configured TCP and gRPC addresses.
+2. Accepts incoming TCP connections (Cap'n Proto) or gRPC calls (Protobuf).
+3. Routes deserialized messages to the Notifier core.
+
+KEY PARAMETERS:
+- AppConfig: Shared microservice configuration.
+- Notifier: The core dispatching engine.
+*/
+
 import (
 	"os"
-	"sync"
 
 	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
 	proto_msg "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf"
@@ -15,13 +29,11 @@ import (
 )
 
 type Server struct {
-	Logger        interfaces.Logger
-	AppConfig     *toolbox_config.AppConfig
-	Notifier      *notifier.Notifier
-	listeners     map[string]socket_interfaces.TransportConnection
-	listenersLock sync.RWMutex
-	shutdown      chan struct{}
-	serverSock    socket_interfaces.Socket // Store the listener socket
+	Logger     interfaces.Logger
+	AppConfig  *toolbox_config.AppConfig
+	Notifier   *notifier.Notifier
+	shutdown   chan struct{}
+	serverSock socket_interfaces.Socket // Store the listener socket
 }
 
 // -----------------------------------------------------------------------------
@@ -32,7 +44,6 @@ func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *no
 		AppConfig: ac,
 		Logger:    logger,
 		Notifier:  notif,
-		listeners: make(map[string]socket_interfaces.TransportConnection),
 		shutdown:  make(chan struct{}),
 	}
 }
@@ -67,7 +78,7 @@ func (s *Server) Start() error {
 		s.Logger.Info("Notification Server gRPC listening on " + grpcAddr)
 		gSrv := network.NewGRPCServerWithLogger(grpcAddr, s.Logger)
 		proto_msg.RegisterNotifServiceServer(gSrv.Server, s.Notifier)
-		
+
 		if err := gSrv.Start(); err != nil {
 			s.Logger.Error("gRPC server failed: %v", err)
 		}
