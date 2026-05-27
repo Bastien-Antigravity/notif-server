@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"io"
+	"net"
+	"time"
 
 	"github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
@@ -12,7 +14,7 @@ import (
 func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 	defer sock.Close()
 
-	// 1. Extract Client Identity from Handshake (Peeling wrappers if needed)
+	// 1. Extract Client Identity from Handshake
 	identity := safesocket.GetIdentity(sock)
 	if identity == nil {
 		s.Logger.Error("Connection does not have a Handshake identity")
@@ -21,38 +23,24 @@ func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 
 	name, _ := identity.FromName()
 	address, _ := identity.FromAddress()
+	
+	// Stable Identity Resolution: Strip port from address if present
+	host, _, err := net.SplitHostPort(address)
+	if err == nil {
+		address = host
+	}
 	clientName := fmt.Sprintf("%s-%s", name, address)
 
 	s.Logger.Info(fmt.Sprintf("Client identified: %s", clientName))
 
-	// Disable all timeouts to allow the connection to remain open forever.
-	_ = sock.SetIdleTimeout(0)
+	// Set a reasonable idle timeout to clean up zombie connections.
+	_ = sock.SetIdleTimeout(10 * time.Minute)
 
 	// 2. Message Loop
-	// Allocation Optimization: Reuse buffer
-	// Start with 64KB (typical max UDP, reasonable for TCP config messages)
-	buf := make([]byte, 65535)
-
+	// Using ReadMessage() which is provided by safe-socket for robust framing.
 	for {
-		// No deadline set here, allowing infinite wait on Read.
-
-		// Use Read(buf) instead of ReadMessage to reuse buffer
-		n, err := sock.Read(buf)
+		data, err := sock.ReadMessage()
 		if err != nil {
-			if err == io.ErrShortBuffer {
-				// Buffer too small. Resize double and retry.
-				// Note: FramedTCP uses Peek, so the header is still there. We can safely retry.
-				// Safety check: Limit max size to avoid OOM (e.g. 10MB)
-				if len(buf) >= 10*1024*1024 {
-					s.Logger.Error(fmt.Sprintf("Message too large from %s", clientName))
-					return
-				}
-				newSize := len(buf) * 2
-				s.Logger.Info(fmt.Sprintf("Resizing read buffer for %s to %d bytes", clientName, newSize))
-				buf = make([]byte, newSize)
-				continue
-			}
-
 			if err != io.EOF {
 				s.Logger.Error(fmt.Sprintf("Read error from %s: %v", clientName, err))
 			}
@@ -60,11 +48,7 @@ func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 		}
 
 		// Handle NotifMsg via Cap'n Proto (Raw forwarding)
-		// We copy the buffer because 'buf' is reused in the loop.
-		rawMsg := make([]byte, n)
-		copy(rawMsg, buf[:n])
-
 		// Send to Notifier raw channel
-		s.Notifier.RawNotifChan <- rawMsg
+		s.Notifier.RawNotifChan <- data
 	}
 }

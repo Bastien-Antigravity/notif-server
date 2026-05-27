@@ -2,6 +2,7 @@ package notifiers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -48,7 +49,7 @@ func NewTelegramSender(telegramConf map[string]string, confName string) (*Telegr
 	return nil, curError
 }
 
-func (ts *TelegramSender) SendMessage(msg, notUsed, notUsedAlso string) error {
+func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	payload := map[string]string{
 		"chat_id": ts.chatId,
 		"text":    msg,
@@ -62,8 +63,16 @@ func (ts *TelegramSender) SendMessage(msg, notUsed, notUsedAlso string) error {
 	backoff := 500 * time.Millisecond
 
 	var lastErr error
+	client := &http.Client{}
+
 	for i := 0; i < maxRetries; i++ {
-		httpsResp, err := http.Post(ts.apiURL, "application/json", bytes.NewBuffer(jsonByteMessage))
+		req, err := http.NewRequestWithContext(ctx, "POST", ts.apiURL, bytes.NewBuffer(jsonByteMessage))
+		if err != nil {
+			return fmt.Errorf("failed to create request (telegram): %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		httpsResp, err := client.Do(req)
 		if err == nil {
 			defer httpsResp.Body.Close()
 			if httpsResp.StatusCode == http.StatusOK {
@@ -71,17 +80,23 @@ func (ts *TelegramSender) SendMessage(msg, notUsed, notUsedAlso string) error {
 			}
 			lastErr = fmt.Errorf("unexpected http status (telegram): %d", httpsResp.StatusCode)
 			
-			// If it's a 4xx error (other than 429), don't retry as it's likely a client error (wrong token/chatId)
 			if httpsResp.StatusCode >= 400 && httpsResp.StatusCode < 500 && httpsResp.StatusCode != 429 {
 				return lastErr
 			}
 		} else {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			lastErr = fmt.Errorf("failed to post http request (telegram): %v", err)
 		}
 
 		if i < maxRetries-1 {
-			time.Sleep(backoff)
-			backoff *= 2
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(backoff):
+				backoff *= 2
+			}
 		}
 	}
 

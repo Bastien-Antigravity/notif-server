@@ -2,6 +2,7 @@ package notifiers
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"mime/multipart"
@@ -59,7 +60,7 @@ func NewGmailSender(gmailConf map[string]string, confName string) (*GmailSender,
 	return nil, curError
 }
 
-func (gmailSender *GmailSender) SendMessage(subject, attachment, body string) error {
+func (gmailSender *GmailSender) SendMessage(ctx context.Context, subject, attachment, body string) error {
 	// prepare attachment
 	var attachmentBytes []byte
 	var err error
@@ -116,6 +117,12 @@ func (gmailSender *GmailSender) SendMessage(subject, attachment, body string) er
 	writer.Close()
 	// Create authentication
 	auth := smtp.PlainAuth("", gmailSender.from, gmailSender.passwd, gmailSender.smtp)
+	
+	// Check context before sending
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	// Send email
 	err = smtp.SendMail(
 		fmt.Sprintf("%s:%d", gmailSender.smtp, gmailSender.port),

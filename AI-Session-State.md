@@ -7,11 +7,12 @@ lifecycle:
   protected_branches:
   - main
   - master
-  current_version: 1.1.0
+  current_version: 1.2.0
   version_source: VERSION.txt
 done_when:
-- 'tests_passed: false'
-- 'decision_log_updated: false'
+- 'worker_pools_implemented: true'
+- 'ingestion_hardened: true'
+- 'documentation_synced: true'
 directives:
 - 'autonomous-doc-sync: mandatory'
 - 'obsidian-brain-sync: mandatory'
@@ -23,16 +24,19 @@ tags:
 
 # 🧠 AI Session State: notif-server
 
-> [!IMPORTANT] CORE OPERATING DIRECTIVE
-> I am autonomously obligated to update all associated documentation (**README.md**, **ARCHITECTURE.md**) and relevant **Obsidian Brain** nodes after every code modification. No manual user reminder is required.
-
 ## 🚀 Progress Tracking
-- [x] Initialized session state tracking for this repository.
-- [x] Synchronized with the Global Obsidian Brain.
+- [x] Initialized session state tracking.
+- [x] Architectural Analysis completed (5 critical issues identified).
+- [x] Worker Pool Implementation: Added per-platform buffered queues and workers.
+- [x] Ingestion Hardening: Switched to ReadMessage() and added 10m IdleTimeout.
+- [x] Identity Hardening: Stable host-based identity resolution.
+- [x] Context-Aware Dispatch: Added context.Context with 30s timeout to SendMessage.
+- [x] Documentation Sync: Created ARCHITECTURE.md and updated README.md/AI-Init.md/DNA.
+- [x] Verified build stability.
 
 ## 🐛 Local Issues / Bugs
 - None identified.
 
 ## ⏭ Next Actions
-- [ ] Maintain this state file during development sprints!
-
+- [ ] Create verification scenario in sandbox-testing.
+- [ ] Monitor worker queue utilization under alert bursts.

@@ -1,14 +1,19 @@
 # 🧬 Project DNA: notif-server
 
 ## 🎯 High-Level Intent (BDD)
-- **Goal**: Centralized notification routing and delivery system.
-- **Key Pattern**: **Pub/Sub / Message Broker Adapter**.
+- **Goal**: Centralized notification gateway for the microservice fleet.
+- **Key Pattern**: **Aggregator / Worker-Pool Dispatch**.
 
 ## 🛠 Technical Constraints
+- **Language**: Go
+- **Ingress Protocols**: gRPC (Protobuf), TCP (Cap'n Proto).
+- **Hardening**: Non-blocking worker pools per platform; 10m IdleTimeout; ReadMessage framing.
 - **Architecture Standard**: Adheres to the ecosystem-wide standards in [[GEMINI.md]].
 
 ## 👥 Roles & Responsibilities
 - **Architect**: 
-    - Implement reliable delivery mechanisms with retries.
+    - Ensure zero-backpressure dispatch logic.
+    - Implement stable host-based identity resolution.
 - **Developer**:
-    - Reference [[GEMINI.md]] for notification history UI standards.
+    - Use Go coding standards and universal-logger.
+    - Maintain context-aware notifier implementations.

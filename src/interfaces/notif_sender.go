@@ -1,5 +1,7 @@
 package interfaces
 
+import "context"
+
 type NotifSenderInterface interface {
-	SendMessage(msg, to, subject string) error
+	SendMessage(ctx context.Context, msg, to, subject string) error
 }

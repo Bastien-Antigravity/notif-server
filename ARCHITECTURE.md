@@ -26,42 +26,32 @@ The `notif-server` is responsible for receiving notification requests from clien
     - Listens for incoming TCP connections using `safe-socket` (Cap'n Proto).
     - Listens for incoming gRPC connections using `google.golang.org/grpc` (Protobuf).
     - Spawns a goroutine for each TCP connection (`handleConnection`).
-    - Reads raw bytes from the TCP socket and sends them to the `Notifier`'s raw channel.
+    - **Hardened Ingestion**: Uses `ReadMessage()` for robust framing and enforces a 10-minute `IdleTimeout` to prune zombie connections.
+    - **Stable Identity**: Strips dynamic ports from client addresses to maintain consistent identity tracking.
 
 ### 2. Notifier (`src/core`)
-- **Role**: The central logic hub.
+- **Role**: The central logic hub and dispatcher.
 - **Function**:
-    - Manages a map of `TagToSenderMap` which routes notification tags to specific senders.
-    - `ConsumeRawMessages()`: Listens on `RawNotifChan`, deserializes messages (using Cap'n Proto definitions), and forwards them to `NotifChan`.
-    - `SendNotification()`: Implements the gRPC service interface, converting Protobuf requests to internal messages.
-    - `processMessage()`: Listens on `NotifChan`, looks up the sender based on the message's tags, and triggers the `SendMessage` method implementation.
-    - **Initialization**: Loads senders (Telegram, Discord, etc.) based on the provided configuration.
+    - **Worker Pool Pattern**: Manages dedicated worker pools (5 workers per platform) and buffered queues (1000 messages) for each external sender.
+    - **Zero Backpressure**: Asynchronous dispatch ensures that slow external APIs do not block the ingestion layer.
+    - **Context-Aware**: Uses `context.Context` with a 30-second timeout for all external API calls to prevent hanging workers.
 
 ### 3. Notifiers (`src/notifiers`)
 - **Role**: Implementations of external service integrations.
-- **Supported Services**:
-    - Telegram
-    - Discord
-    - Matrix
-    - Gmail
-- **Interface**: Each notifier implements the `NotifSenderInterface`.
+- **Supported Services**: Telegram, Discord, Matrix, Gmail.
+- **Interface**: Each notifier implements the `NotifSenderInterface` with `context.Context` support.
 
 ### 4. Schemas (`src/schemas`)
-- **Role**: Serialization contracts.
-- **Structure**:
-    - `capnp/`: Contains Cap'n Proto definitions for binary streaming.
-    - `protobuf/`: Contains Protobuf definitions and generated gRPC service code.
+- **Role**: Serialization contracts (Cap'n Proto and Protobuf).
 
 ## Data Flow
 
 1.  **Client** sends a serialized message via **TCP (Cap'n Proto)** or **gRPC (Protobuf)**.
-2.  **Server** accepts the connection.
-3.  **Cap'n Proto path**: Raw data is pushed to `Notifier.RawNotifChan` and deserialized.
-4.  **gRPC path**: `SendNotification` RPC directly creates an internal `NotifMessage`.
-5.  **Notifier** pushes unified `NotifMessage` to `Notifier.NotifChan`.
-6.  **Notifier** processes the message, checks its **Tags**.
-7.  **Notifier** finds the corresponding **Notifier** (e.g., Telegram) for the tag.
-8.  **Notifier** executes the API call to the external service.
+2.  **Server** accepts and identifies the connection (Stable Identity).
+3.  **Ingestion**: Message is deserialized and pushed to the unified `Notifier.NotifChan`.
+4.  **Dispatch**: `Notifier` looks up the target platforms based on message **Tags**.
+5.  **Queueing**: Message is pushed to the platform-specific **Worker Queue**.
+6.  **Execution**: A dedicated worker picks up the message and performs the HTTP/SMTP call with a 30s timeout.
 
 ## Diagram
 
@@ -70,15 +60,20 @@ graph TD
     Client_TCP[Client (Capnp)] -->|TCP| Server_TCP(Server Listener)
     Client_GRPC[Client (gRPC)] -->|Protobuf| Server_GRPC(gRPC Server)
     
-    Server_TCP -->|Raw Bytes| RawChan(RawNotifChan)
-    RawChan --> DeSer[Capnp Deserializer]
+    Server_TCP -->|ReadMessage| DeSer[Capnp Deserializer]
     DeSer -->|NotifMessage| NotifChan(NotifChan)
     
     Server_GRPC -->|NotifRequest| NotifChan
     
     NotifChan --> Router[Notifier Router]
-    Router -- Tag: ALERT --> Telegram[Telegram Sender]
-    Router -- Tag: INFO --> Discord[Discord Sender]
-    Telegram --> API_TG[Telegram API]
-    Discord --> API_DS[Discord API]
+    Router -- Tag: ALERT --> Queue_TG[Telegram Queue]
+    Router -- Tag: INFO --> Queue_DS[Discord Queue]
+    
+    subgraph "Worker Pools"
+        Queue_TG --> Workers_TG[Telegram Workers x5]
+        Queue_DS --> Workers_DS[Discord Workers x5]
+    end
+    
+    Workers_TG --> API_TG[Telegram API]
+    Workers_DS --> API_DS[Discord API]
 ```

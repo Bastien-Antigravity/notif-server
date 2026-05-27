@@ -2,6 +2,7 @@ package notifiers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -39,17 +40,26 @@ func NewDiscordSender(discordConf map[string]string, confName string) (*DiscordS
 	return nil, curError
 }
 
-func (discordSender *DiscordSender) SendMessage(msg, notUsed, notUsedAlso string) error {
+func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	jsonByteMessage, err := json.Marshal(map[string]string{"content": msg})
 	if err != nil {
 		return fmt.Errorf("failed to marshall message (discord): %v", err)
 	}
-	httpsResp, err := http.Post(discordSender.discordUrl, "application/json", bytes.NewBuffer(jsonByteMessage))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", discordSender.discordUrl, bytes.NewBuffer(jsonByteMessage))
+	if err != nil {
+		return fmt.Errorf("failed to create request (discord): %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	httpsResp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to post http request (discord): %v", err)
 	}
 	defer httpsResp.Body.Close()
-	if httpsResp.StatusCode != http.StatusOK {
+
+	if httpsResp.StatusCode != http.StatusOK && httpsResp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("unexpected http status (discord): %d", httpsResp.StatusCode)
 	}
 	return nil

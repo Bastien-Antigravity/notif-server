@@ -2,6 +2,7 @@ package notifiers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -39,16 +40,25 @@ func NewMatrixSender(matrixConf map[string]string, confName string) (*MatrixSend
 	return nil, curError
 }
 
-func (matrixSender *MatrixSender) SendMessage(msg, notUsed, notUsedAlso string) error {
+func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	jsonByteMessage, err := json.Marshal(map[string]string{"content": msg})
 	if err != nil {
 		return fmt.Errorf("failed to marshall message (matrix): %v", err)
 	}
-	httpsResp, err := http.Post(matrixSender.matrixUrl, "application/json", bytes.NewBuffer(jsonByteMessage))
+
+	req, err := http.NewRequestWithContext(ctx, "POST", matrixSender.matrixUrl, bytes.NewBuffer(jsonByteMessage))
+	if err != nil {
+		return fmt.Errorf("failed to create request (matrix): %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	httpsResp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to post http request (matrix): %v", err)
 	}
 	defer httpsResp.Body.Close()
+
 	if httpsResp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected http status (matrix): %d", httpsResp.StatusCode)
 	}

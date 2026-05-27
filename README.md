@@ -14,58 +14,52 @@ tags:
 
 **Notif Server** is a high-performance notification server written in Go. It acts as a central hub for dispatching notifications to various platforms such as Telegram, Discord, Matrix, and Gmail.
 
-It is designed to be robust, scalable, and easy to integrate with other services via a TCP-based protocol using `safe-socket`.
+It is designed to be robust, scalable, and stable under high load through architectural optimizations and hardened ingestion.
 
 ## Features
 
-- **Multi-Protocol Support**: Dual-protocol ingress via **gRPC (Protobuf)** and **TCP (Cap'n Proto)**.
-- **Multi-Platform Dispatch**: Send notifications to Telegram, Discord, Matrix, and Gmail.
-- **Tag-Based Routing**: Route messages to specific platforms based on tags (e.g., "INFO", "ALERT").
-- **High Performance**: Built with Go's concurrency model (goroutines and channels) for efficient message processing.
-- **Secure Communication**: Uses `safe-socket` for reliable and secure profile-based TCP communication.
-- **Distributed Configuration**: Configurations and endpoints are managed via `distributed-config`.
+- **Multi-Protocol Ingress**: Dual-protocol support via **gRPC (Protobuf)** and **Hardened TCP (Cap'n Proto)**.
+- **Worker Pool Dispatch**: Offloads external API calls (Telegram, Discord, etc.) to platform-specific worker pools to ensure zero backpressure on microservices.
+- **Resilient Messaging**: Uses buffered queues and context-aware timeouts (30s) to handle slow or unresponsive external notification platforms.
+- **Stable Host Identity**: Automatically strips dynamic ports for consistent client identification and tracking.
+- **Tag-Based Routing**: Conditions dispatch based on message tags (e.g., "ALERT", "TRADING").
+- **Resource Protection**: Enforces a 10-minute `IdleTimeout` to automatically prune zombie connections.
+- **Full Observability**: Integrated with `universal-logger` for structured, leveled logging across all dispatch stages.
 
 ## Architecture
 
-The server listens for incoming connections on both TCP and gRPC ports. It deserializes notification messages (using Cap'n Proto or Protobuf), and dispatches them to the configured notifiers. All schemas are centrally managed in `src/schemas`.
-
-## 🛡️ Feature Specs & Governance (BDD)
-The behavior of this microservice is governed by strict specifications in the **[[business-bdd-brain|Business-Specs Brain]]**:
-- **Tag-Based Routing**: [[FEAT-001-Tag-Based-Routing|FEAT-001: Conditional Dispatch]]
-- **Sender Integrations**: [[FEAT-002-Sender-Integrations|FEAT-002: Multi-Platform Support]]
-- **Unified Ingestion**: [[FEAT-003-Unified-Ingestion|FEAT-003: Dual Protocol Support]]
+For a technical deep-dive into the system design, components, and data flow, please refer to [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Getting Started
 
 ### Prerequisites
 
 - Go 1.25+
-- A configuration file compatible with `distributed-config`.
+- External platform credentials (API tokens, chat IDs) configured via `distributed-config`.
 
-### Installation
-
-```bash
-git clone https://github.com/Bastien-Antigravity/notif-server.git
-cd notif-server
-go mod download
-```
-
-### Running the Server
+### Build
 
 ```bash
-go run cmd/notif-server/main.go
+go build -o notif-server cmd/notif-server/main.go
 ```
 
-## Configuration
+## API Protocol
 
-The server relies on `distributed-config` to load capabilities (IP, Port) and notifier credentials. Ensure your configuration backend is set up correctly.
+The server enforces a strict ingestion protocol:
 
-## Dependencies
+1.  **Handshake**: Mandatory identity exchange (Safe-Socket `tcp-hello` profile).
+2.  **Framing**: Handled natively via `ReadMessage()`.
+3.  **Timeouts**: 10-minute idle pruning and 30-second API dispatch limits.
 
-- [safe-socket](https://github.com/Bastien-Antigravity/safe-socket)
-- [distributed-config](https://github.com/Bastien-Antigravity/distributed-config)
-- [flexible-logger](https://github.com/Bastien-Antigravity/flexible-logger)
+## Project Structure
 
-## License
+- `src/server/`: Hardened connection handling and dual-loop protocol orchestration.
+- `src/core/`: Notifier hub with worker pools and dispatch routing.
+- `src/notifiers/`: Context-aware platform-specific sender implementations.
+- `src/schemas/`: Protobuf and Cap'n Proto definitions.
 
-This project is licensed under the MIT License.
+## 🛡️ Testing & Verification
+```bash
+go test -v ./src/...
+```
+Behavioral integrity is verified via the **Spec-First Protocol**.
