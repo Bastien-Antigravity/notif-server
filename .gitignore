@@ -1,126 +1,75 @@
-# --- Bastien-Antigravity Master Merged .gitignore ---
+# 🌍 Bastien-Antigravity Global GitIgnore Template
+# Purpose: Unified noise-reduction across the fleet.
 
-# Global / OS
+# --- System Files ---
 .DS_Store
 .DS_Store?
-.AppleDouble
-.LSOverride
 ._*
 .Spotlight-V100
 .Trashes
-Thumbs.db
 ehthumbs.db
-*.mdb
+Thumbs.db
+desktop.ini
 
-# IDEs
+# --- IDEs & Editors ---
 .vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
-*.sublime-project
-*.sublime-workspace
+*~
+.fleet/
+.helix/
 
-# Environment / Secrets (NEVER COMMIT .env)
-.env
-.env.*
-!.env.example
+# --- Build & Dependency Artifacts ---
+# Rust
+target/
+Cargo.lock
 
-# Logs and Temporaries
-*.log
-logs/
-tmp/
-temp/
-var/
-mock_output.txt
+# Go
+vendor/
+go.work
+go.work.sum
+__debug_bin
+*.test
 
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
-.Python
-.venv/
-venv/
-ENV/
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Go
-bin/
-/main
-/test
-/test_app
-/config-server
-/notif-server
-/tele-remote
-/log-server
-vendor/
-go.work
-go.work.sum
-__debug_*
-
-# Rust
-target/
-**/*.rs.bk
-Cargo.lock
-
-# Project Specific
-config_store.json
-registry_state.json
-Recommendations.txt
-todo.txt
-ARCHITECTURE.md.bak
-zzz_memo
-
-# Binary / Data
-*.exe
-*.pkl
-# 🌍 Bastien-Antigravity Global GitIgnore Template
-# Purpose: Unified noise-reduction across the fleet.
-# --- System Files ---
-desktop.ini
-# --- IDEs & Editors ---
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-*~
-.fleet/
-.helix/
-# --- Build & Dependency Artifacts ---
-# Rust
-# Go
-__debug_bin
-*.test
-# Python
+.env
 .venv
+env/
+venv/
+build/
+dist/
+*.egg-info/
+
 # C++
+build/
+bin/
 obj/
 *.o
 *.a
 *.so
 *.out
+
 # --- Secrets & Config ---
 .env*
+!.env.example
 *.pem
 *.key
 *.cert
 secrets.yaml
+
 # --- Project Specific Noise ---
+zzz_memo
 *.bak
 *.tmp
+temp/
+
+# Chroma DB
+.chroma_db*
