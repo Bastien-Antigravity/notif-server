@@ -14,12 +14,12 @@ type NotifierMsg capnp.Struct
 const NotifierMsg_TypeID = 0x868758ad9f398b4f
 
 func NewNotifierMsg(s *capnp.Segment) (NotifierMsg, error) {
-	st, err := capnp.NewStruct(s, capnp.ObjectSize{DataSize: 0, PointerCount: 3})
+	st, err := capnp.NewStruct(s, capnp.ObjectSize{DataSize: 0, PointerCount: 4})
 	return NotifierMsg(st), err
 }
 
 func NewRootNotifierMsg(s *capnp.Segment) (NotifierMsg, error) {
-	st, err := capnp.NewRootStruct(s, capnp.ObjectSize{DataSize: 0, PointerCount: 3})
+	st, err := capnp.NewRootStruct(s, capnp.ObjectSize{DataSize: 0, PointerCount: 4})
 	return NotifierMsg(st), err
 }
 
@@ -91,6 +91,24 @@ func (s NotifierMsg) SetAttachment(v string) error {
 	return capnp.Struct(s).SetText(1, v)
 }
 
+func (s NotifierMsg) Level() (string, error) {
+	p, err := capnp.Struct(s).Ptr(3)
+	return p.Text(), err
+}
+
+func (s NotifierMsg) HasLevel() bool {
+	return capnp.Struct(s).HasPtr(3)
+}
+
+func (s NotifierMsg) LevelBytes() ([]byte, error) {
+	p, err := capnp.Struct(s).Ptr(3)
+	return p.TextBytes(), err
+}
+
+func (s NotifierMsg) SetLevel(v string) error {
+	return capnp.Struct(s).SetText(3, v)
+}
+
 func (s NotifierMsg) Tags() (capnp.TextList, error) {
 	p, err := capnp.Struct(s).Ptr(2)
 	if err != nil {
@@ -124,7 +142,7 @@ type NotifierMsg_List = capnp.StructList[NotifierMsg]
 
 // NewNotifierMsg creates a new list of NotifierMsg.
 func NewNotifierMsg_List(s *capnp.Segment, sz int32) (NotifierMsg_List, error) {
-	l, err := capnp.NewCompositeList(s, capnp.ObjectSize{DataSize: 0, PointerCount: 3}, sz)
+	l, err := capnp.NewCompositeList(s, capnp.ObjectSize{DataSize: 0, PointerCount: 4}, sz)
 	return capnp.StructList[NotifierMsg](l), err
 }
 

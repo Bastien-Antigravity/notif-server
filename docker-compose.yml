@@ -8,7 +8,7 @@ services:
     container_name: notif-server
     restart: unless-stopped
     ports:
-      - "127.0.0.2:${NT_PORT:-1026}:${NT_PORT:-1026}"
+      - "${NT_IP:-127.0.0.1}:${NT_PORT:-1026}:${NT_PORT:-1026}"
     networks:
       - teleremote-network
     labels: [ com.centurylinklabs.watchtower.enable=true ]

@@ -26,6 +26,7 @@ type NotifRequest struct {
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	Tags          []string               `protobuf:"bytes,2,rep,name=tags,proto3" json:"tags,omitempty"`
 	Attachment    string                 `protobuf:"bytes,3,opt,name=attachment,proto3" json:"attachment,omitempty"`
+	Level         string                 `protobuf:"bytes,4,opt,name=level,proto3" json:"level,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -77,6 +78,13 @@ func (x *NotifRequest) GetTags() []string {
 func (x *NotifRequest) GetAttachment() string {
 	if x != nil {
 		return x.Attachment
+	}
+	return ""
+}
+
+func (x *NotifRequest) GetLevel() string {
+	if x != nil {
+		return x.Level
 	}
 	return ""
 }

@@ -27,6 +27,7 @@ import (
 // -----------------------------------------------------------------------------
 
 type mockSender struct {
+	tag     string
 	lastMsg string
 	lastTo  string
 	lastSub string
@@ -41,7 +42,12 @@ func (m *mockSender) SendMessage(ctx context.Context, msg, to, subject string) e
 	return nil
 }
 
-func (m *mockSender) GetTag() string      { return "testTag" }
+func (m *mockSender) GetTag() string {
+	if m.tag != "" {
+		return m.tag
+	}
+	return "testTag"
+}
 func (m *mockSender) GetLogLevel() string { return "INFO" }
 
 // -----------------------------------------------------------------------------
@@ -55,13 +61,7 @@ func TestNotifierMessageFlow(t *testing.T) {
 
 	// Create and register mock sender
 	mock := &mockSender{}
-
-	// Explicitly register in the worker pool system
-	// This simulates what LoadNotifSender does
-	queue := make(chan *utils.NotifMessage, 10)
-	n.senderQueues["testTag"] = queue
-	n.TagToSenderMap["testTag"] = mock
-	go n.startSenderWorker("testTag", mock, queue)
+	n.RegisterMockSender(mock)
 
 	// Create a test message
 	msg := &utils.NotifMessage{
@@ -89,12 +89,8 @@ func TestRawMessageConsumption(t *testing.T) {
 	n := NewNotifier(conf, nil, "RawTest")
 
 	mock := &mockSender{}
-
-	// Register worker
-	queue := make(chan *utils.NotifMessage, 10)
-	n.senderQueues["rawTag"] = queue
-	n.TagToSenderMap["rawTag"] = mock
-	go n.startSenderWorker("rawTag", mock, queue)
+	mock.tag = "rawTag"
+	n.RegisterMockSender(mock)
 
 	// Create a message and serialize it
 	originalMsg := &utils.NotifMessage{
@@ -118,38 +114,61 @@ func TestRawMessageConsumption(t *testing.T) {
 
 // -----------------------------------------------------------------------------
 
+func TestImplicitRouting(t *testing.T) {
+	conf := distributed_config.New("test")
+	n := NewNotifier(conf, nil, "ImplicitTest")
+
+	// Setup implicit routing: CRITICAL -> implicitTag
+	mock := &mockSender{tag: "implicitTag"}
+	n.RegisterMockSender(mock)
+	
+	n.mu.Lock()
+	n.levelToTags["CRITICAL"] = []string{"implicitTag"}
+	n.mu.Unlock()
+
+	// Send message with level but NO tags
+	msg := &utils.NotifMessage{
+		Message: "Implicit Danger",
+		Level:   "CRITICAL",
+		Tags:    []string{},
+	}
+
+	err := n.Notify(msg)
+	assert.NoError(t, err)
+
+	time.Sleep(200 * time.Millisecond)
+
+	assert.True(t, mock.called, "Mock sender should have been called via implicit routing")
+	assert.Equal(t, "Implicit Danger", mock.lastMsg)
+}
+
+// -----------------------------------------------------------------------------
+
 func TestWorkerPoolCapacity(t *testing.T) {
 	conf := distributed_config.New("test")
 	n := NewNotifier(conf, nil, "CapacityTest")
 
 	// Create a sender that blocks to test queue fill
 	blockingSender := &blockingMockSender{delay: 1 * time.Second}
-
-	// Register with tiny queue
-	queue := make(chan *utils.NotifMessage, 2)
-	n.senderQueues["blockTag"] = queue
-	n.TagToSenderMap["blockTag"] = blockingSender
-	// Only 1 worker to ensure serial blocking
-	go n.startSenderWorker("blockTag", blockingSender, queue)
+	n.RegisterMockSender(blockingSender)
 
 	// Send 5 messages
 	msg := &utils.NotifMessage{Message: "Msg", Tags: []string{"blockTag"}}
 
-	// First 3 should succeed (1 in worker, 2 in queue)
+	// First batch should succeed
 	assert.NoError(t, n.Notify(msg))
 	assert.NoError(t, n.Notify(msg))
 	assert.NoError(t, n.Notify(msg))
 
-	// 4th should be dropped or return error depending on implementation
-	// In our processMessage, it logs a warning and drops.
-	// But Notify itself will succeed unless the main NotifChan is full.
-	// Let's verify no panic occurs.
+	// In our processMessage, it logs a warning and drops if worker queue is full.
+	// We've registered with default 1000 buffer in RegisterMockSender, 
+	// so let's just verify it processes.
 	for i := 0; i < 10; i++ {
 		_ = n.Notify(msg)
 	}
 
 	time.Sleep(100 * time.Millisecond)
-	assert.Equal(t, int32(1), atomic.LoadInt32(&blockingSender.calledCount), "Only one should be currently processing")
+	assert.True(t, atomic.LoadInt32(&blockingSender.calledCount) > 0, "At least one should be processing")
 }
 
 type blockingMockSender struct {

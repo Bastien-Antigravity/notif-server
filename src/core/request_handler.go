@@ -53,6 +53,7 @@ func NewNotifHandler(name string, parentClassConfig *distributed_config.Config) 
 func (notifNcapHandler *NotifNcapHandler) NotifNcapSerialize(notifMessage *utils.NotifMessage) []byte {
 	notifNcapHandler.notifMessage.SetMessage_(notifMessage.Message)
 	notifNcapHandler.notifMessage.SetAttachment(notifMessage.Attachment)
+	notifNcapHandler.notifMessage.SetLevel(notifMessage.Level)
 
 	// Create new text list for tags
 	tList, _ := capnplib.NewTextList(notifNcapHandler.memSeg, int32(len(notifMessage.Tags)))
@@ -91,6 +92,11 @@ func DeserializeNotifMsg(data []byte) (*utils.NotifMessage, error) {
 	val, err = goObj.Attachment()
 	if err == nil {
 		notifMessage.Attachment = val
+	}
+
+	val, err = goObj.Level()
+	if err == nil {
+		notifMessage.Level = val
 	}
 
 	tagList, err := goObj.Tags()

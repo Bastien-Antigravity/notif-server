@@ -19,7 +19,9 @@ KEY PARAMETERS:
 
 import (
 	"context"
+	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Bastien-Antigravity/notif-server/src/interfaces"
@@ -41,6 +43,10 @@ type Notifier struct {
 	NotifChan      chan *utils.NotifMessage
 	RawNotifChan   chan []byte
 	senderQueues   map[string]chan *utils.NotifMessage
+	senderShutdown map[string]chan struct{} // Per-platform shutdown signal
+	currentConf    map[string]map[string]string
+	levelToTags    map[string][]string // Implicit routing map: Level -> [Tag1, Tag2]
+	mu             sync.RWMutex
 	shutdown       chan struct{}
 }
 
@@ -56,13 +62,22 @@ func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, 
 		RawNotifChan:   make(chan []byte, 100),
 		TagToSenderMap: make(map[string]interfaces.INotifSender),
 		senderQueues:   make(map[string]chan *utils.NotifMessage),
+		senderShutdown: make(map[string]chan struct{}),
+		currentConf:    make(map[string]map[string]string),
+		levelToTags:    make(map[string][]string),
 		shutdown:       make(chan struct{}),
 	}
 
 	curNotifier.EnsureSafeLogger()
 
-	// Load initial config and initialize workers
-	curNotifier.LoadNotifSender(*conf.LiveConfig.Load())
+	// 1. Initial Load
+	curNotifier.Reload(*conf.LiveConfig.Load())
+
+	// 2. Register for Live Updates
+	conf.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
+		curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
+		curNotifier.Reload(newConf)
+	})
 
 	go curNotifier.processMessage()
 	go curNotifier.ConsumeRawMessages()
@@ -72,8 +87,121 @@ func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, 
 
 // -----------------------------------------------------------------------------
 
+// Reload compares the new configuration with the current state and hot-swaps
+// senders that have changed or were added/removed.
+func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
+	notifier.mu.Lock()
+	defer notifier.mu.Unlock()
+
+	platforms := []string{"TELEGRAM", "DISCORD", "MATRIX", "GMAIL"}
+	newLevelToTags := make(map[string][]string)
+
+	for _, platform := range platforms {
+		newPlatConf, ok := newConf[platform]
+		oldPlatConf, existed := notifier.currentConf[platform]
+
+		// Scenario A: Provider was removed
+		if !ok && existed {
+			if notifier.Logger != nil {
+				notifier.Logger.Info("Removing notification provider: %s", platform)
+			}
+			notifier.stopSender(platform)
+			continue
+		}
+
+		// Scenario B: Provider added or updated
+		if ok && (!existed || !reflect.DeepEqual(newPlatConf, oldPlatConf)) {
+			if existed {
+				if notifier.Logger != nil {
+					notifier.Logger.Info("Updating configuration for provider: %s", platform)
+				}
+				notifier.stopSender(platform)
+			} else {
+				if notifier.Logger != nil {
+					notifier.Logger.Info("Initializing new provider: %s", platform)
+				}
+			}
+			notifier.startSender(platform, newPlatConf)
+		}
+
+		// Re-build implicit routing map for this platform if it's active
+		if ok {
+			if logLevels, ok := newPlatConf["LOGLEVEL"]; ok {
+				tag := platform
+				if t, ok := newPlatConf["TAG"]; ok {
+					tag = t
+				}
+				for _, level := range strings.Split(logLevels, ",") {
+					level = strings.TrimSpace(strings.ToUpper(level))
+					if level != "" {
+						newLevelToTags[level] = append(newLevelToTags[level], tag)
+					}
+				}
+			}
+		}
+	}
+
+	notifier.currentConf = newConf
+	notifier.levelToTags = newLevelToTags
+	if notifier.Logger != nil {
+		notifier.Logger.Info("Implicit routing map updated: %v", notifier.levelToTags)
+	}
+}
+
+func (notifier *Notifier) stopSender(tag string) {
+	if signal, ok := notifier.senderShutdown[tag]; ok {
+		close(signal)
+		delete(notifier.senderShutdown, tag)
+	}
+	delete(notifier.TagToSenderMap, tag)
+	delete(notifier.senderQueues, tag)
+}
+
+func (notifier *Notifier) startSender(platform string, conf map[string]string) {
+	var sender interfaces.INotifSender
+	var err string
+
+	switch platform {
+	case "TELEGRAM":
+		sender, err = notifiers.NewTelegramSender(conf, "TELEGRAM")
+	case "DISCORD":
+		sender, err = notifiers.NewDiscordSender(conf, "DISCORD")
+	case "MATRIX":
+		sender, err = notifiers.NewMatrixSender(conf, "MATRIX")
+	case "GMAIL":
+		sender, err = notifiers.NewGmailSender(conf, "GMAIL")
+	}
+
+	if err != "" {
+		if notifier.Logger != nil {
+			notifier.Logger.Error("Failed to initialize %s: %s", platform, err)
+		}
+		return
+	}
+
+	tag := sender.GetTag()
+	notifier.TagToSenderMap[tag] = sender
+
+	// Create buffered queue and shutdown signal
+	queue := make(chan *utils.NotifMessage, 1000)
+	notifier.senderQueues[tag] = queue
+	
+	shutdown := make(chan struct{})
+	notifier.senderShutdown[tag] = shutdown
+
+	// Start worker pool (5 workers)
+	for i := 0; i < 5; i++ {
+		go notifier.startSenderWorker(tag, sender, queue, shutdown)
+	}
+}
+
+// -----------------------------------------------------------------------------
+
 // Notify sends a structured notification message.
 func (notifier *Notifier) Notify(msg *utils.NotifMessage) error {
+	notifier.mu.RLock()
+	defer notifier.mu.RUnlock()
+
 	select {
 	case notifier.NotifChan <- msg:
 		return nil
@@ -86,6 +214,9 @@ func (notifier *Notifier) Notify(msg *utils.NotifMessage) error {
 
 // SendRaw sends a raw byte message (serialized).
 func (notifier *Notifier) SendRaw(data []byte) error {
+	notifier.mu.RLock()
+	defer notifier.mu.RUnlock()
+
 	select {
 	case notifier.RawNotifChan <- data:
 		return nil
@@ -98,10 +229,14 @@ func (notifier *Notifier) SendRaw(data []byte) error {
 
 // SendNotification implements proto_msg.NotifServiceServer (gRPC)
 func (notifier *Notifier) SendNotification(ctx context.Context, req *proto_msg.NotifRequest) (*proto_msg.NotifResponse, error) {
+	notifier.mu.RLock()
+	defer notifier.mu.RUnlock()
+
 	msg := &utils.NotifMessage{
 		Message:    req.Message,
 		Tags:       req.Tags,
 		Attachment: req.Attachment,
+		Level:      req.Level,
 	}
 
 	select {
@@ -116,85 +251,44 @@ func (notifier *Notifier) SendNotification(ctx context.Context, req *proto_msg.N
 
 // -----------------------------------------------------------------------------
 
-// LoadNotifSender initializes senders and their corresponding worker pools.
+// LoadNotifSender is now a wrapper around Reload for backward compatibility
+// but essentially Reload is the new standard.
 func (notifier *Notifier) LoadNotifSender(notifiersConf map[string]map[string]string) map[string][]string {
-	returnLogLevelByTag := map[string][]string{}
-
-	// Helper to register sender and start workers
-	register := func(sender interfaces.INotifSender, logLevels string, tag string) {
-		for _, level := range strings.Split(logLevels, ",") {
-			level = strings.TrimSpace(level)
-			returnLogLevelByTag[level] = append(returnLogLevelByTag[level], tag)
-		}
-
-		notifier.TagToSenderMap[tag] = sender
-
-		// Create buffered queue for this sender (1000 messages)
-		queue := make(chan *utils.NotifMessage, 1000)
-		notifier.senderQueues[tag] = queue
-
-		// Start worker pool (5 workers per platform)
-		for i := 0; i < 5; i++ {
-			go notifier.startSenderWorker(tag, sender, queue)
-		}
-	}
-
-	if conf, ok := notifiersConf["TELEGRAM"]; ok {
-		if s, err := notifiers.NewTelegramSender(conf, "TELEGRAM"); err == "" {
-			register(s, s.GetLogLevel(), s.GetTag())
-		} else if notifier.Logger != nil {
-			notifier.Logger.Error("Error loading Telegram sender: %s", err)
-		}
-	}
-
-	if conf, ok := notifiersConf["DISCORD"]; ok {
-		if s, err := notifiers.NewDiscordSender(conf, "DISCORD"); err == "" {
-			register(s, s.GetLogLevel(), s.GetTag())
-		} else if notifier.Logger != nil {
-			notifier.Logger.Error("Error loading Discord sender: %s", err)
-		}
-	}
-
-	if conf, ok := notifiersConf["MATRIX"]; ok {
-		if s, err := notifiers.NewMatrixSender(conf, "MATRIX"); err == "" {
-			register(s, s.GetLogLevel(), s.GetTag())
-		} else if notifier.Logger != nil {
-			notifier.Logger.Error("Error loading Matrix sender: %s", err)
-		}
-	}
-
-	if conf, ok := notifiersConf["GMAIL"]; ok {
-		if s, err := notifiers.NewGmailSender(conf, "GMAIL"); err == "" {
-			register(s, s.GetLogLevel(), s.GetTag())
-		} else if notifier.Logger != nil {
-			notifier.Logger.Error("Error loading Gmail sender: %s", err)
-		}
-	}
-
-	return returnLogLevelByTag
+	notifier.Reload(notifiersConf)
+	return nil // Note: Implicit routing return will be handled in Phase 2
 }
 
 // -----------------------------------------------------------------------------
 
-// Stop shuts down the notifier and its workers.
+// Stop shuts down the notifier and all active workers.
 func (notifier *Notifier) Stop() {
+	notifier.mu.Lock()
+	defer notifier.mu.Unlock()
+
 	close(notifier.shutdown)
+	for tag := range notifier.senderShutdown {
+		notifier.stopSender(tag)
+	}
 }
 
 // -----------------------------------------------------------------------------
 
 // RegisterMockSender is a helper for testing to manually register a sender with its worker pool.
 func (notifier *Notifier) RegisterMockSender(sender interfaces.INotifSender) {
+	notifier.mu.Lock()
+	defer notifier.mu.Unlock()
+
 	tag := sender.GetTag()
 	notifier.TagToSenderMap[tag] = sender
 
-	// Create buffered queue for this sender (1000 messages)
 	queue := make(chan *utils.NotifMessage, 1000)
 	notifier.senderQueues[tag] = queue
 
-	// Start worker pool (5 workers per platform)
+	shutdown := make(chan struct{})
+	notifier.senderShutdown[tag] = shutdown
+
 	for i := 0; i < 5; i++ {
-		go notifier.startSenderWorker(tag, sender, queue)
+		go notifier.startSenderWorker(tag, sender, queue, shutdown)
 	}
 }
 
@@ -235,7 +329,7 @@ func (notifier *Notifier) ConsumeRawMessages() {
 
 // -----------------------------------------------------------------------------
 
-func (notifier *Notifier) startSenderWorker(tag string, sender interfaces.INotifSender, queue chan *utils.NotifMessage) {
+func (notifier *Notifier) startSenderWorker(tag string, sender interfaces.INotifSender, queue chan *utils.NotifMessage, shutdown chan struct{}) {
 	for {
 		select {
 		case msg := <-queue:
@@ -247,6 +341,9 @@ func (notifier *Notifier) startSenderWorker(tag string, sender interfaces.INotif
 				}
 			}
 			cancel()
+		case <-shutdown:
+			// Draining logic could be added here if needed
+			return
 		case <-notifier.shutdown:
 			return
 		}
@@ -259,10 +356,35 @@ func (notifier *Notifier) processMessage() {
 	for {
 		select {
 		case recvNotifMessage := <-notifier.NotifChan:
-			if notifier.Logger != nil {
-				notifier.Logger.Debug("Processing message with tags: %v", recvNotifMessage.Tags)
-			}
+			notifier.mu.RLock()
+			
+			// 1. Implicit Routing: Apply Level mapping
+			targetTags := make(map[string]bool)
+			
+			// Add explicit tags
 			for _, tag := range recvNotifMessage.Tags {
+				targetTags[tag] = true
+			}
+			
+			// Add implicit tags from Level
+			if recvNotifMessage.Level != "" {
+				levelKey := strings.ToUpper(recvNotifMessage.Level)
+				if tags, ok := notifier.levelToTags[levelKey]; ok {
+					if notifier.Logger != nil {
+						notifier.Logger.Debug("Level-based implicit routing: %s -> %v", levelKey, tags)
+					}
+					for _, tag := range tags {
+						targetTags[tag] = true
+					}
+				}
+			}
+
+			if notifier.Logger != nil {
+				notifier.Logger.Debug("Processing message with final tags: %v", targetTags)
+			}
+
+			// 2. Dispatch to worker queues
+			for tag := range targetTags {
 				if queue, ok := notifier.senderQueues[tag]; ok {
 					if notifier.Logger != nil {
 						notifier.Logger.Debug("Pushing message to queue for tag: %s", tag)
@@ -282,6 +404,7 @@ func (notifier *Notifier) processMessage() {
 					}
 				}
 			}
+			notifier.mu.RUnlock()
 		case <-notifier.shutdown:
 			return
 		}

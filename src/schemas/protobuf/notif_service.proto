@@ -12,6 +12,7 @@ message NotifRequest {
   string message = 1;
   repeated string tags = 2;
   string attachment = 3;
+  string level = 4;
 }
 
 message NotifResponse {

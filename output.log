@@ -1,0 +1,6 @@
+Initializing Config with Profile: standalone
+Strategy: Standalone
+Config Loaded from File: /Users/imac/Desktop/Bastien-Antigravity/notif-server/cmd/notif-server/standalone.yaml
+[2026-06-11 18:00:22.361] [ERROR   ] [] [:] notif-server: INTERNAL ERROR [NetworkManager]: failed to open socket after 1 attempts: dial tcp 127.0.0.1:9020: connect: connection refused (Original: Failed to recover connection to 127.0.0.1:9020)
+[2026-06-11 18:00:22.903] [ERROR   ] [] [:] notif-server: INTERNAL ERROR [NetworkManager]: failed to open socket after 1 attempts: dial tcp 127.0.0.1:9020: connect: connection refused (Original: Failed to recover connection to 127.0.0.1:9020)
+[2026-06-11 18:00:23.679] [ERROR   ] [] [:] notif-server: INTERNAL ERROR [NetworkManager]: failed to open socket after 1 attempts: dial tcp 127.0.0.1:9020: connect: connection refused (Original: Failed to recover connection to 127.0.0.1:9020)

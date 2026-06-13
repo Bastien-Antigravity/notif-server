@@ -24,5 +24,6 @@ struct NotifierMsg {
   message @0 :Text;
   attachment @1 :Text = "";
   tags @2 :List(Text) = ["telegram"];
+  level @3 :Text = "";
 }
 
