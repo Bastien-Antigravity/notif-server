@@ -48,6 +48,7 @@ type Notifier struct {
 	levelToTags    map[string][]string // Implicit routing map: Level -> [Tag1, Tag2]
 	mu             sync.RWMutex
 	shutdown       chan struct{}
+	OnUpdate       func()
 }
 
 // -----------------------------------------------------------------------------
@@ -93,59 +94,125 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 	notifier.mu.Lock()
 	defer notifier.mu.Unlock()
 
-	platforms := []string{"TELEGRAM", "DISCORD", "MATRIX", "GMAIL"}
+	// 1. Process Secrets (Decryption of ENC(...) blocks)
+	for section, kv := range newConf {
+		for key, val := range kv {
+			if strings.HasPrefix(val, "ENC(") && strings.HasSuffix(val, ")") {
+				decrypted, err := distributed_config.ProcessConfigSecrets([]byte(val))
+				if err == nil {
+					newConf[section][key] = string(decrypted)
+					if notifier.Logger != nil {
+						notifier.Logger.Debug("Decrypted secret for %s:%s", section, key)
+					}
+				} else if notifier.Logger != nil {
+					notifier.Logger.Error("Failed to decrypt secret for %s:%s: %v", section, key, err)
+				}
+			}
+		}
+	}
+
+	supportedTypes := map[string]bool{
+		"TELEGRAM": true,
+		"DISCORD":  true,
+		"MATRIX":   true,
+		"GMAIL":    true,
+	}
+
+	activeTags := make(map[string]bool)
 	newLevelToTags := make(map[string][]string)
 
-	for _, platform := range platforms {
-		newPlatConf, ok := newConf[platform]
-		oldPlatConf, existed := notifier.currentConf[platform]
-
-		// Scenario A: Provider was removed
-		if !ok && existed {
-			if notifier.Logger != nil {
-				notifier.Logger.Info("Removing notification provider: %s", platform)
+	// 2. Identify and Start/Update Notifiers from Config
+	for sectionName, sectionConf := range newConf {
+		platType, ok := sectionConf["TYPE"]
+		if !ok {
+			// Fallback: If no TYPE but name matches a platform, treat as that type
+			if supportedTypes[strings.ToUpper(sectionName)] {
+				platType = strings.ToUpper(sectionName)
+			} else {
+				continue
 			}
-			notifier.stopSender(platform)
+		}
+
+		platType = strings.ToUpper(platType)
+		if !supportedTypes[platType] {
 			continue
 		}
 
-		// Scenario B: Provider added or updated
-		if ok && (!existed || !reflect.DeepEqual(newPlatConf, oldPlatConf)) {
+		activeTags[sectionName] = true
+		oldConf, existed := notifier.currentConf[sectionName]
+
+		// Update or Start
+		if !existed || !reflect.DeepEqual(sectionConf, oldConf) {
 			if existed {
 				if notifier.Logger != nil {
-					notifier.Logger.Info("Updating configuration for provider: %s", platform)
+					notifier.Logger.Info("Updating configuration for notifier: %s", sectionName)
 				}
-				notifier.stopSender(platform)
+				notifier.stopSender(sectionName)
 			} else {
 				if notifier.Logger != nil {
-					notifier.Logger.Info("Initializing new provider: %s", platform)
+					notifier.Logger.Info("Initializing new notifier: %s (Type: %s)", sectionName, platType)
 				}
 			}
-			notifier.startSender(platform, newPlatConf)
+			notifier.startSender(platType, sectionName, sectionConf)
 		}
 
-		// Re-build implicit routing map for this platform if it's active
-		if ok {
-			if logLevels, ok := newPlatConf["LOGLEVEL"]; ok {
-				tag := platform
-				if t, ok := newPlatConf["TAG"]; ok {
-					tag = t
-				}
-				for _, level := range strings.Split(logLevels, ",") {
-					level = strings.TrimSpace(strings.ToUpper(level))
-					if level != "" {
-						newLevelToTags[level] = append(newLevelToTags[level], tag)
-					}
+		// Update Level Routing Map
+		if logLevels, ok := sectionConf["LOGLEVEL"]; ok {
+			for _, level := range strings.Split(logLevels, ",") {
+				level = strings.TrimSpace(strings.ToUpper(level))
+				if level != "" {
+					newLevelToTags[level] = append(newLevelToTags[level], sectionName)
 				}
 			}
+		}
+	}
+
+	// 3. Stop Notifiers that were removed from config
+	for existingTag := range notifier.TagToSenderMap {
+		if !activeTags[existingTag] {
+			if notifier.Logger != nil {
+				notifier.Logger.Info("Removing notifier: %s", existingTag)
+			}
+			notifier.stopSender(existingTag)
 		}
 	}
 
 	notifier.currentConf = newConf
 	notifier.levelToTags = newLevelToTags
 	if notifier.Logger != nil {
-		notifier.Logger.Info("Implicit routing map updated: %v", notifier.levelToTags)
+		notifier.Logger.Info("Notifier routing map updated: %v", notifier.levelToTags)
 	}
+	if notifier.OnUpdate != nil {
+		go notifier.OnUpdate()
+	}
+}
+
+// NotifierStatus contains basic info about an active provider
+type NotifierStatus struct {
+	Name    string
+	Type    string
+	Healthy bool
+}
+
+// GetConfig returns the underlying distributed configuration instance.
+func (notifier *Notifier) GetConfig() *distributed_config.Config {
+	return notifier.config
+}
+
+// GetActiveNotifiers returns information about all currently active notification senders.
+func (notifier *Notifier) GetActiveNotifiers() []NotifierStatus {
+	notifier.mu.RLock()
+	defer notifier.mu.RUnlock()
+
+	result := make([]NotifierStatus, 0, len(notifier.TagToSenderMap))
+	for tag, sender := range notifier.TagToSenderMap {
+		result = append(result, NotifierStatus{
+			Name:    tag,
+			Type:    reflect.TypeOf(sender).String(),
+			Healthy: true, // TODO: Implement health check on senders if necessary
+		})
+	}
+	return result
 }
 
 func (notifier *Notifier) stopSender(tag string) {
@@ -157,29 +224,26 @@ func (notifier *Notifier) stopSender(tag string) {
 	delete(notifier.senderQueues, tag)
 }
 
-func (notifier *Notifier) startSender(platform string, conf map[string]string) {
+func (notifier *Notifier) startSender(platform, tag string, conf map[string]string) {
 	var sender interfaces.INotifSender
 	var err string
 
 	switch platform {
 	case "TELEGRAM":
-		sender, err = notifiers.NewTelegramSender(conf, "TELEGRAM")
+		sender, err = notifiers.NewTelegramSender(conf, tag)
 	case "DISCORD":
-		sender, err = notifiers.NewDiscordSender(conf, "DISCORD")
+		sender, err = notifiers.NewDiscordSender(conf, tag)
 	case "MATRIX":
-		sender, err = notifiers.NewMatrixSender(conf, "MATRIX")
+		sender, err = notifiers.NewMatrixSender(conf, tag)
 	case "GMAIL":
-		sender, err = notifiers.NewGmailSender(conf, "GMAIL")
+		sender, err = notifiers.NewGmailSender(conf, tag)
 	}
 
 	if err != "" {
-		if notifier.Logger != nil {
-			notifier.Logger.Error("Failed to initialize %s: %s", platform, err)
-		}
+		notifier.Logger.Error("Failed to initialize %s (%s): %s", platform, tag, err)
 		return
 	}
 
-	tag := sender.GetTag()
 	notifier.TagToSenderMap[tag] = sender
 
 	// Create buffered queue and shutdown signal

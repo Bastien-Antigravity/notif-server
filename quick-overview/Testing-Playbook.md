@@ -1,3 +1,13 @@
+---
+microservice: notif-server
+type: overview
+status: active
+tags:
+- '#service/notif-server'
+- '#type/overview'
+- '#state/active'
+- '#ai/ignore'
+---
 # 🧪 Testing Playbook
 
 The `notif-server` maintains a 100% success rate on its core test suite.

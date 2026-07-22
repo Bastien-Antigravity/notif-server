@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -59,8 +61,17 @@ func NewTelegramSender(telegramConf map[string]string, confName string) (*Telegr
 	}
 
 	if curError == "" {
-		// Fix: Telegram API uses https, not tgram:// scheme.
-		ts.apiURL = fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", ts.token)
+		// Priority: Config URL > Env URL > Default Official URL
+		baseURL := telegramConf["URL"]
+		if baseURL == "" {
+			baseURL = os.Getenv("TELEGRAM_API_URL")
+		}
+		if baseURL == "" {
+			baseURL = "https://api.telegram.org"
+		}
+		baseURL = strings.TrimRight(baseURL, "/")
+
+		ts.apiURL = fmt.Sprintf("%s/bot%s/sendMessage", baseURL, ts.token)
 		return ts, ""
 	}
 	return nil, curError

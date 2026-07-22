@@ -1,3 +1,13 @@
+---
+microservice: notif-server
+type: overview
+status: active
+tags:
+- '#service/notif-server'
+- '#type/overview'
+- '#state/active'
+- '#ai/ignore'
+---
 # 🏗️ Architecture Overview
 
 The `notif-server` follows a **Centralized Aggregator / Asynchronous Dispatch** pattern.

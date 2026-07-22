@@ -1,0 +1,62 @@
+common:
+    name: common
+    common_file_path: ""
+    public_key: ""
+    reset: false
+    public_ip: 127.0.0.1
+    retry_base_ms: "100"
+    retry_max_sec: "5"
+capabilities:
+    config_server:
+        grpc_ip: ${CF_GRPC_IP:127.0.0.1}
+        grpc_port: ${CF_GRPC_PORT:3307}
+        ip: ${CF_IP:127.0.0.1}
+        port: ${CF_PORT:3306}
+        refresh: "300"
+        rest_port: ${CF_REST_PORT:3308}
+    file_system:
+        data_path: ./fs_data
+        temp_path: ./fs_temp
+    jupyter:
+        ip: 127.0.0.1
+        port: "8888"
+    log_server:
+        grpc_ip: ${LS_GRPC_IP:127.0.0.1}
+        grpc_port: ${LS_GRPC_PORT:9021}
+        ip: ${LS_IP:127.0.0.1}
+        port: ${LS_PORT:9020}
+    nats:
+        client_id: ${APP_NAME:generic_client}
+        servers:
+            - nats://${NATS_IP:127.0.0.1}:4222
+        subject_prefix: antigravity
+    notif_server:
+        grpc_ip: ${NT_GRPC_IP:127.0.0.1}
+        grpc_port: ${NT_GRPC_PORT:1027}
+        ip: ${NT_IP:127.0.0.1}
+        port: ${NT_PORT:1026}
+        rest_port: ${NT_REST_PORT:1029}
+    ontime_scheduler:
+        grpc_ip: ${SC_GRPC_IP:127.0.0.1}
+        grpc_port: ${SC_GRPC_PORT:8081}
+        ip: ${SC_IP:127.0.0.1}
+        port: ${SC_PORT:8080}
+    rag_engine:
+        ip: ${RG_IP:127.0.0.1}
+        port: ${RG_PORT:8080}
+    tele_remote:
+        chat_id: ${TR_CHATID}
+        ip: ${TR_IP:127.0.0.1}
+        port: ${TR_PORT:1863}
+        token: ${TR_TOKEN}
+        url: ${TR_URL:https://api.telegram.org}
+    timescale_db:
+        db_name: ${TS_DBNAME:maindb}
+        ip: ${TS_IP:127.0.0.1}
+        password: ${TS_PASSWORD:dbuser}
+        port: ${TS_PORT:5432}
+        ssl_cert: "false"
+        user: ${TS_USER:dbuser}
+    web_interface:
+        ip: ${WB_IP:127.0.0.1}
+        port: ${WB_PORT:8080}

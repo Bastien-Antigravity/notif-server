@@ -73,3 +73,8 @@ temp/
 
 # Chroma DB
 .chroma_db*
+
+# Compiled Binaries & Logs
+notif-server
+*.log
+

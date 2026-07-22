@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package grpc_control;
+
+option go_package = "src/grpc_control";
+
+// -----------------------------------------------------------------------------
+// Notif Control Service Definition
+// -----------------------------------------------------------------------------
+
+service NotifControlService {
+    // Notifier Management
+    rpc ListNotifiers(ListNotifiersRequest) returns (ListNotifiersResponse);
+    rpc SendTestNotification(SendTestNotificationRequest) returns (ControlResponse);
+    rpc ReloadConfig(ReloadConfigRequest) returns (ControlResponse);
+
+    // Server Status
+    rpc GetStatus(GetStatusRequest) returns (GetStatusResponse);
+
+    // Alerting Configuration
+    rpc GetAlertingConfig(GetAlertingConfigRequest) returns (GetAlertingConfigResponse);
+    rpc SetAlertingConfig(SetAlertingConfigRequest) returns (ControlResponse);
+    rpc AddProvider(AddProviderRequest) returns (ControlResponse);
+    rpc RemoveProvider(RemoveProviderRequest) returns (ControlResponse);
+    rpc GetSupportedTypes(GetSupportedTypesRequest) returns (GetSupportedTypesResponse);
+}
+
+// -----------------------------------------------------------------------------
+// Common Messages
+// -----------------------------------------------------------------------------
+
+message ControlResponse {
+    bool success = 1;
+    string message = 2;
+    int64 timestamp = 3;
+    string error_code = 4;
+}
+
+// -----------------------------------------------------------------------------
+// Notifier Management
+message ListNotifiersRequest {
+}
+
+message NotifierInfo {
+    string name = 1;
+    string type = 2;
+    bool healthy = 3;
+}
+
+message ListNotifiersResponse {
+    bool success = 1;
+    repeated NotifierInfo notifiers = 2;
+    int64 timestamp = 3;
+}
+
+message SendTestNotificationRequest {
+    string level = 1; // INFO, WARNING, ERROR, CRITICAL
+    string title = 2;
+    string message = 3;
+}
+
+message ReloadConfigRequest {
+}
+
+// -----------------------------------------------------------------------------
+// Status
+// -----------------------------------------------------------------------------
+
+message GetStatusRequest {
+}
+
+message GetStatusResponse {
+    bool healthy = 1;
+    string status = 2;
+    string version = 3;
+    int64 timestamp = 4;
+    map<string, string> details = 5;
+}
+
+// -----------------------------------------------------------------------------
+// Alerting Configuration
+message GetAlertingConfigRequest {
+}
+
+message AlertingConfigSection {
+    map<string, string> settings = 1;
+}
+
+message GetAlertingConfigResponse {
+    bool success = 1;
+    map<string, AlertingConfigSection> config = 2; // platform -> settings
+    int64 timestamp = 3;
+}
+
+message SetAlertingConfigRequest {
+    string platform = 1;
+    string key = 2;
+    string value = 3;
+}
+
+message AddProviderRequest {
+    string tag = 1;
+    string type = 2;
+}
+
+message RemoveProviderRequest {
+    string tag = 1;
+}
+
+message GetSupportedTypesRequest {
+}
+
+message GetSupportedTypesResponse {
+    bool success = 1;
+    repeated string types = 2;
+}

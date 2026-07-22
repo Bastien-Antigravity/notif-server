@@ -2,8 +2,13 @@
 tags:
 - '#ai/ignore'
 - '#zone/3-fleet'
+- '#service/notif-server'
+- '#type/overview'
+- '#state/active'
+microservice: notif-server
+type: overview
+status: active
 ---
-
 # 📚 General & Misc: `notif-server`
 
 This document details the code standards, naming conventions, project layout, configuration structure, and version tracking mechanism governing the `notif-server` service.

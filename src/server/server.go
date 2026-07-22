@@ -17,8 +17,10 @@ KEY PARAMETERS:
 
 import (
 	"os"
+	"time"
 
 	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
+	"github.com/Bastien-Antigravity/notif-server/src/grpc_control"
 	proto_msg "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf"
 
 	factory "github.com/Bastien-Antigravity/safe-socket"
@@ -32,19 +34,22 @@ type Server struct {
 	Logger     interfaces.Logger
 	AppConfig  *toolbox_config.AppConfig
 	Notifier   *notifier.Notifier
+	Controller notifier.NotifController
 	shutdown   chan struct{}
 	serverSock socket_interfaces.Socket // Store the listener socket
+	grpcSrv    *network.GRPCServer
 }
 
 // -----------------------------------------------------------------------------
 
 // NewServer creates a new Notification Server.
-func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *notifier.Notifier) *Server {
+func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *notifier.Notifier, controller notifier.NotifController) *Server {
 	return &Server{
-		AppConfig: ac,
-		Logger:    logger,
-		Notifier:  notif,
-		shutdown:  make(chan struct{}),
+		AppConfig:  ac,
+		Logger:     logger,
+		Notifier:   notif,
+		Controller: controller,
+		shutdown:   make(chan struct{}),
 	}
 }
 
@@ -53,6 +58,9 @@ func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *no
 // Stop shuts down the server.
 func (s *Server) Stop() {
 	close(s.shutdown)
+	if s.grpcSrv != nil {
+		s.grpcSrv.Stop()
+	}
 }
 
 // -----------------------------------------------------------------------------
@@ -76,16 +84,23 @@ func (s *Server) Start() error {
 		}
 
 		s.Logger.Info("Notification Server gRPC listening on " + grpcAddr)
-		gSrv := network.NewGRPCServerWithLogger(grpcAddr, s.Logger)
-		proto_msg.RegisterNotifServiceServer(gSrv.Server, s.Notifier)
+		s.grpcSrv = network.NewGRPCServerWithLogger(grpcAddr, s.Logger)
+		proto_msg.RegisterNotifServiceServer(s.grpcSrv.Server, s.Notifier)
 
-		if err := gSrv.Start(); err != nil {
+		// Register NotifControlServiceServer on the same server
+		controlImpl := grpc_control.NewControlService(s.Controller, s.Logger)
+		grpc_control.RegisterNotifControlServiceServer(s.grpcSrv.Server, controlImpl)
+
+		if err := s.grpcSrv.Start(); err != nil {
 			s.Logger.Error("gRPC server failed: %v", err)
 		}
 	}()
 
-	// 3. Start TCP Server
-	s.serverSock, err = factory.Create("tcp-hello", tcpAddr, "127.0.0.1", "server", true)
+	// 3. Start TCP Server with 10-minute idle timeout configuration
+	config := factory.SocketConfig{
+		Deadline: 10 * time.Minute,
+	}
+	s.serverSock, err = factory.CreateWithConfig("tcp-hello", tcpAddr, config, "server", true)
 	if err != nil {
 		return err
 	}
