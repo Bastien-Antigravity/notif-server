@@ -58,7 +58,7 @@ func (m *mockLogger) Report(format string, args ...any) { fmt.Printf("REPORT: "+
 func (m *mockLogger) Stream(format string, args ...any) { fmt.Printf("STREAM: "+format+"\n", args...) }
 func (m *mockLogger) SetLevel(level utils.Level)        {}
 func (m *mockLogger) GetLevel() utils.Level             { return utils.LevelInfo }
-func (m *mockLogger) SetCallerSkip(skip int)           {}
+func (m *mockLogger) SetCallerSkip(skip int)            {}
 func (m *mockLogger) Close()                            {}
 func (m *mockLogger) AddMetadata(key string, value any) {}
 

@@ -142,7 +142,7 @@ func (gmailSender *GmailSender) dialAndSend(ctx context.Context, payload []byte)
 	var err error
 
 	d := net.Dialer{}
-	
+
 	// 1. Establish connection based on port
 	if gmailSender.port == 465 {
 		// Implicit TLS
@@ -232,17 +232,17 @@ func (gmailSender *GmailSender) buildEmail(subject, attachment, body string) ([]
 		if err != nil {
 			return nil, fmt.Errorf("failed to read attachment: %w", err)
 		}
-		
+
 		h := make(map[string][]string)
 		h["Content-Type"] = []string{fmt.Sprintf("application/octet-stream; name=\"%s\"", filepath.Base(attachment))}
 		h["Content-Transfer-Encoding"] = []string{"base64"}
 		h["Content-Disposition"] = []string{fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(attachment))}
-		
+
 		part, err := writer.CreatePart(h)
 		if err != nil {
 			return nil, err
 		}
-		
+
 		encoded := make([]byte, base64.StdEncoding.EncodedLen(len(attachmentBytes)))
 		base64.StdEncoding.Encode(encoded, attachmentBytes)
 		part.Write(encoded)

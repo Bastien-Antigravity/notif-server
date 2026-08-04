@@ -121,7 +121,7 @@ func TestImplicitRouting(t *testing.T) {
 	// Setup implicit routing: CRITICAL -> implicitTag
 	mock := &mockSender{tag: "implicitTag"}
 	n.RegisterMockSender(mock)
-	
+
 	n.mu.Lock()
 	n.levelToTags["CRITICAL"] = []string{"implicitTag"}
 	n.mu.Unlock()
@@ -161,7 +161,7 @@ func TestWorkerPoolCapacity(t *testing.T) {
 	assert.NoError(t, n.Notify(msg))
 
 	// In our processMessage, it logs a warning and drops if worker queue is full.
-	// We've registered with default 1000 buffer in RegisterMockSender, 
+	// We've registered with default 1000 buffer in RegisterMockSender,
 	// so let's just verify it processes.
 	for i := 0; i < 10; i++ {
 		_ = n.Notify(msg)

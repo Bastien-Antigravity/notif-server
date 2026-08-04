@@ -23,10 +23,10 @@ import (
 	"github.com/Bastien-Antigravity/notif-server/src/grpc_control"
 	proto_msg "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf"
 
-	factory "github.com/Bastien-Antigravity/safe-socket"
-	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/network"
+	factory "github.com/Bastien-Antigravity/safe-socket"
+	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
 	"github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 

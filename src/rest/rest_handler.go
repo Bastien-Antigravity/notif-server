@@ -20,8 +20,8 @@ var mfeJS string
 // -----------------------------------------------------------------------------
 
 type RESTHandler struct {
-	logger   unilog_interfaces.Logger
-	control  *grpc_control.ControlServiceImpl
+	logger  unilog_interfaces.Logger
+	control *grpc_control.ControlServiceImpl
 }
 
 // -----------------------------------------------------------------------------
@@ -29,8 +29,8 @@ type RESTHandler struct {
 // NewRESTHandler creates a new RESTHandler instance
 func NewRESTHandler(controller notif_core.NotifController, logger unilog_interfaces.Logger) *RESTHandler {
 	return &RESTHandler{
-		logger:   logger,
-		control:  grpc_control.NewControlService(controller, logger),
+		logger:  logger,
+		control: grpc_control.NewControlService(controller, logger),
 	}
 }
 

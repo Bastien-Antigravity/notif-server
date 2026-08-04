@@ -37,23 +37,30 @@ type mockLogger struct {
 	lastMsg string
 }
 
-func (m *mockLogger) Debug(format string, args ...any)    { fmt.Printf("DEBUG: "+format+"\n", args...) }
-func (m *mockLogger) Info(format string, args ...any)     { m.lastMsg = fmt.Sprintf(format, args...); fmt.Printf("INFO: "+format+"\n", args...) }
-func (m *mockLogger) Warning(format string, args ...any)  { fmt.Printf("WARN: "+format+"\n", args...) }
-func (m *mockLogger) Error(format string, args ...any)    { fmt.Printf("ERROR: "+format+"\n", args...) }
-func (m *mockLogger) Critical(format string, args ...any) { fmt.Printf("CRITICAL: "+format+"\n", args...) }
-func (m *mockLogger) Logon(format string, args ...any)    { fmt.Printf("LOGON: "+format+"\n", args...) }
-func (m *mockLogger) Logout(format string, args ...any)   { fmt.Printf("LOGOUT: "+format+"\n", args...) }
-func (m *mockLogger) Trade(format string, args ...any)    { fmt.Printf("TRADE: "+format+"\n", args...) }
-func (m *mockLogger) Schedule(format string, args ...any) { fmt.Printf("SCHEDULE: "+format+"\n", args...) }
-func (m *mockLogger) Report(format string, args ...any)   { fmt.Printf("REPORT: "+format+"\n", args...) }
-func (m *mockLogger) Stream(format string, args ...any)   { fmt.Printf("STREAM: "+format+"\n", args...) }
-func (m *mockLogger) SetLevel(level utils.Level)          {}
-func (m *mockLogger) GetLevel() utils.Level             { return utils.LevelInfo }
-func (m *mockLogger) SetCallerSkip(skip int)           {}
-func (m *mockLogger) Close()                              {}
+func (m *mockLogger) Debug(format string, args ...any) { fmt.Printf("DEBUG: "+format+"\n", args...) }
+func (m *mockLogger) Info(format string, args ...any) {
+	m.lastMsg = fmt.Sprintf(format, args...)
+	fmt.Printf("INFO: "+format+"\n", args...)
+}
+func (m *mockLogger) Warning(format string, args ...any) { fmt.Printf("WARN: "+format+"\n", args...) }
+func (m *mockLogger) Error(format string, args ...any)   { fmt.Printf("ERROR: "+format+"\n", args...) }
+func (m *mockLogger) Critical(format string, args ...any) {
+	fmt.Printf("CRITICAL: "+format+"\n", args...)
+}
+func (m *mockLogger) Logon(format string, args ...any)  { fmt.Printf("LOGON: "+format+"\n", args...) }
+func (m *mockLogger) Logout(format string, args ...any) { fmt.Printf("LOGOUT: "+format+"\n", args...) }
+func (m *mockLogger) Trade(format string, args ...any)  { fmt.Printf("TRADE: "+format+"\n", args...) }
+func (m *mockLogger) Schedule(format string, args ...any) {
+	fmt.Printf("SCHEDULE: "+format+"\n", args...)
+}
+func (m *mockLogger) Report(format string, args ...any)               { fmt.Printf("REPORT: "+format+"\n", args...) }
+func (m *mockLogger) Stream(format string, args ...any)               { fmt.Printf("STREAM: "+format+"\n", args...) }
+func (m *mockLogger) SetLevel(level utils.Level)                      {}
+func (m *mockLogger) GetLevel() utils.Level                           { return utils.LevelInfo }
+func (m *mockLogger) SetCallerSkip(skip int)                          {}
+func (m *mockLogger) Close()                                          {}
 func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
-func (m *mockLogger) AddMetadata(key string, value any) {}
+func (m *mockLogger) AddMetadata(key string, value any)               {}
 
 // -----------------------------------------------------------------------------
 

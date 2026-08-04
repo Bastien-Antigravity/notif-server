@@ -249,7 +249,7 @@ func (notifier *Notifier) startSender(platform, tag string, conf map[string]stri
 	// Create buffered queue and shutdown signal
 	queue := make(chan *utils.NotifMessage, 1000)
 	notifier.senderQueues[tag] = queue
-	
+
 	shutdown := make(chan struct{})
 	notifier.senderShutdown[tag] = shutdown
 
@@ -421,15 +421,15 @@ func (notifier *Notifier) processMessage() {
 		select {
 		case recvNotifMessage := <-notifier.NotifChan:
 			notifier.mu.RLock()
-			
+
 			// 1. Implicit Routing: Apply Level mapping
 			targetTags := make(map[string]bool)
-			
+
 			// Add explicit tags
 			for _, tag := range recvNotifMessage.Tags {
 				targetTags[tag] = true
 			}
-			
+
 			// Add implicit tags from Level
 			if recvNotifMessage.Level != "" {
 				levelKey := strings.ToUpper(recvNotifMessage.Level)

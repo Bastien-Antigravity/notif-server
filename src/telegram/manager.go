@@ -57,12 +57,12 @@ func (m *MenuManager) RebuildMenu() {
 	// 2. Alerting Config Browser (Add/Edit/Remove)
 	config := m.controller.GetAlertingConfig()
 	var sections []toolbox_teleclient.Action
-	
+
 	// A. Manage Existing Providers
 	for platform, settings := range config {
 		tag := platform
 		var keyActions []toolbox_teleclient.Action
-		
+
 		// List Keys for Editing
 		for key, val := range settings {
 			kName := key
@@ -78,22 +78,28 @@ func (m *MenuManager) RebuildMenu() {
 						Label:       fmt.Sprintf("✏️ Edit %s", kName),
 						InputPrompt: fmt.Sprintf("Enter new value for [%s] %s:", tag, kName),
 						Callback: func(input string) error {
-							if input == "" { return nil }
+							if input == "" {
+								return nil
+							}
 							err := m.controller.SetAlertingConfig(tag, kName, input)
-							if err == nil { m.RebuildMenu() }
+							if err == nil {
+								m.RebuildMenu()
+							}
 							return err
 						},
 					},
 				},
 			})
 		}
-		
+
 		// Add "Delete Provider" Button
 		keyActions = append(keyActions, toolbox_teleclient.Action{
 			Label: fmt.Sprintf("🗑 Delete %s", tag),
 			Callback: func(input string) error {
 				err := m.controller.RemoveProvider(tag)
-				if err == nil { m.RebuildMenu() }
+				if err == nil {
+					m.RebuildMenu()
+				}
 				return err
 			},
 		})
@@ -103,7 +109,7 @@ func (m *MenuManager) RebuildMenu() {
 			SubMenu: keyActions,
 		})
 	}
-	
+
 	// B. Add New Provider Logic
 	types := m.controller.GetSupportedTypes()
 	var addActions []toolbox_teleclient.Action
@@ -113,9 +119,13 @@ func (m *MenuManager) RebuildMenu() {
 			Label:       fmt.Sprintf("➕ New %s", platType),
 			InputPrompt: fmt.Sprintf("Enter a UNIQUE TAG name for this %s instance:", platType),
 			Callback: func(input string) error {
-				if input == "" { return nil }
+				if input == "" {
+					return nil
+				}
 				err := m.controller.AddProvider(input, platType)
-				if err == nil { m.RebuildMenu() }
+				if err == nil {
+					m.RebuildMenu()
+				}
 				return err
 			},
 		})
