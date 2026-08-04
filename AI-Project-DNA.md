@@ -1,4 +1,13 @@
-# 🧬 Project DNA: notif-server
+---
+microservice: 08-Base-Scripts
+type: note
+status: active
+tags:
+- '#service/08-Base-Scripts'
+- '#type/note'
+- '#state/active'
+- '#zone/3-fleet'
+---# 🧬 Project DNA: notif-server
 
 ## 🎯 High-Level Intent (BDD)
 - **Goal**: Centralized notification gateway for the microservice fleet.
@@ -8,7 +17,7 @@
 - **Language**: Go
 - **Ingress Protocols**: gRPC (Protobuf), TCP (Cap'n Proto).
 - **Hardening**: Non-blocking worker pools per platform; 10m IdleTimeout; ReadMessage framing.
-- **Architecture Standard**: Adheres to the ecosystem-wide standards in [[GEMINI.md]].
+- **Architecture Standard**: Adheres to the ecosystem-wide standards in .
 
 ## 👥 Roles & Responsibilities
 - **Architect**: 

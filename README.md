@@ -8,6 +8,8 @@ tags:
 - '#domain/observability'
 - '#domain/networking'
 - '#zone/3-fleet'
+- '#type/repository'
+- '#state/active'
 ---
 
 # Notif Server

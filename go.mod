@@ -29,12 +29,14 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/Bastien-Antigravity/universal-logger => ../universal-logger
 
-replace github.com/Bastien-Antigravity/microservice-toolbox => ../microservice-toolbox
 
-replace github.com/Bastien-Antigravity/distributed-config => ../distributed-config
 
-replace github.com/Bastien-Antigravity/safe-socket => ../safe-socket
 
-replace github.com/Bastien-Antigravity/flexible-logger => ../flexible-logger
+replace (
+	github.com/Bastien-Antigravity/microservice-toolbox => ../microservice-toolbox
+	github.com/Bastien-Antigravity/distributed-config => ../distributed-config
+	github.com/Bastien-Antigravity/safe-socket => ../safe-socket
+	github.com/Bastien-Antigravity/universal-logger => ../universal-logger
+	github.com/Bastien-Antigravity/flexible-logger => ../flexible-logger
+)

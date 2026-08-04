@@ -49,7 +49,7 @@ func TestIdleTimeoutFix(t *testing.T) {
 	go nt.ConsumeRawMessages()
 
 	ac := &toolbox_config.AppConfig{Config: conf}
-	srv := NewServer(ac, ul, nt)
+	srv := NewServer(ac, ul, nt, nil)
 
 	// 2. Start server
 	done := make(chan error, 1)

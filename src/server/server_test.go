@@ -78,7 +78,7 @@ func TestServerConnection(t *testing.T) {
 	ul := logger.NewUniLog(ml)
 	nt := notifier.NewNotifier(conf, ul, "TestServer")
 	ac := &toolbox_config.AppConfig{Config: conf}
-	srv := NewServer(ac, ul, nt)
+	srv := NewServer(ac, ul, nt, nil)
 
 	// 3. Start server in a goroutine
 	done := make(chan error, 1)

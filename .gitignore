@@ -78,3 +78,9 @@ temp/
 notif-server
 *.log
 
+# --- Standard Ecosystem Protections ---
+*.pyc
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
