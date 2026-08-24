@@ -2,8 +2,8 @@ services:
   # --- Infrastructure ---
   notif-server:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: notif-server/Dockerfile
     image: ghcr.io/bastien-antigravity/notif-server:${TAG:-latest}
     container_name: notif-server
     restart: unless-stopped

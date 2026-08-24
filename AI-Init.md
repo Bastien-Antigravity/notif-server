@@ -1,3 +1,7 @@
+# Metadata
+- Version: 0.0.1
+- Classification: Level 1 Microservice
+
 ---
 microservice: notif-server
 type: governance
