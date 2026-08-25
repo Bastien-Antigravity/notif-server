@@ -1,6 +1,8 @@
 # === BUILD STAGE ===
 FROM golang:1.25-alpine AS builder
 
+LABEL org.opencontainers.image.source="https://github.com/Bastien-Antigravity/notif-server"
+
 # Install build dependencies
 RUN apk add --no-cache git gcc musl-dev ca-certificates tzdata
 
