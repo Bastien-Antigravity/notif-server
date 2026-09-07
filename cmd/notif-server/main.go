@@ -29,11 +29,8 @@ import (
 	"github.com/Bastien-Antigravity/notif-server/src/server"
 	"github.com/Bastien-Antigravity/notif-server/src/telegram"
 
-	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	toolbox_bootstrap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/bootstrap"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
-	unilog "github.com/Bastien-Antigravity/universal-logger/src/bootstrap"
-	unilog_config "github.com/Bastien-Antigravity/universal-logger/src/config"
-	unilog_utils "github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
 
 // -----------------------------------------------------------------------------
@@ -41,26 +38,9 @@ import (
 // -----------------------------------------------------------------------------
 
 func main() {
-	// 1. Initialize Toolbox Config (handles --profile automatically)
-	appConfig, err := toolbox_config.LoadConfig("standalone", []string{"store"})
-	if err != nil {
-		fmt.Printf("Critical Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
-	// 2. Initialize Logger via Universal Logger Bootstrapper
-	_, uniLog := unilog.InitWithOptions(unilog.BootstrapOptions{
-		Name:             "notif-server",
-		ConfigProfile:    appConfig.Profile,
-		LoggerProfile:    "standard",
-		InitialLogLevel:  unilog_utils.LevelInfo,
-		UseLocalNotifier: true,
-		ExistingConfig:   &unilog_config.DistConfig{Config: appConfig.Config},
-	})
+	// 1. Initialize Service via Unified Ecosystem Bootstrapper
+	appConfig, uniLog := toolbox_bootstrap.BootstrapService("notif-server", "store")
 	defer uniLog.Close()
-
-	// Inject the logger back into the appConfig so toolbox can use it
-	appConfig.Logger = uniLog
 
 	uniLog.Info("Starting Notif Server...")
 
