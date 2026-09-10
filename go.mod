@@ -8,9 +8,9 @@ require (
 	github.com/Bastien-Antigravity/microservice-toolbox v0.0.1
 	github.com/Bastien-Antigravity/safe-socket v0.0.1
 	github.com/Bastien-Antigravity/universal-logger v0.0.1
-	github.com/stretchr/testify v1.11.1
-	google.golang.org/grpc v1.81.1
-	google.golang.org/protobuf v1.36.11
+	github.com/stretchr/testify v1.12.1
+	google.golang.org/grpc v1.83.2
+	google.golang.org/protobuf v1.36.12
 )
 
 require (
@@ -21,22 +21,18 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260523011958-0a33c5d7ca68 // indirect
+	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-
-
-
-
 replace (
-	github.com/Bastien-Antigravity/microservice-toolbox => ../microservice-toolbox
 	github.com/Bastien-Antigravity/distributed-config => ../distributed-config
+	github.com/Bastien-Antigravity/flexible-logger => ../flexible-logger
+	github.com/Bastien-Antigravity/microservice-toolbox => ../microservice-toolbox
 	github.com/Bastien-Antigravity/safe-socket => ../safe-socket
 	github.com/Bastien-Antigravity/universal-logger => ../universal-logger
-	github.com/Bastien-Antigravity/flexible-logger => ../flexible-logger
 )
