@@ -18,7 +18,6 @@ require (
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	golang.org/x/net v0.55.0 // indirect
@@ -29,14 +28,10 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-
-
-
-
 replace (
-	github.com/Bastien-Antigravity/microservice-toolbox => ../microservice-toolbox
 	github.com/Bastien-Antigravity/distributed-config => ../distributed-config
+	github.com/Bastien-Antigravity/flexible-logger => ../flexible-logger
+	github.com/Bastien-Antigravity/microservice-toolbox => ../microservice-toolbox
 	github.com/Bastien-Antigravity/safe-socket => ../safe-socket
 	github.com/Bastien-Antigravity/universal-logger => ../universal-logger
-	github.com/Bastien-Antigravity/flexible-logger => ../flexible-logger
 )

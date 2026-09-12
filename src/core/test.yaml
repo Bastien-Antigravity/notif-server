@@ -36,11 +36,6 @@ capabilities:
         ip: ${NT_IP:127.0.0.1}
         port: ${NT_PORT:1026}
         rest_port: ${NT_REST_PORT:1029}
-    ontime_scheduler:
-        grpc_ip: ${SC_GRPC_IP:127.0.0.1}
-        grpc_port: ${SC_GRPC_PORT:8081}
-        ip: ${SC_IP:127.0.0.1}
-        port: ${SC_PORT:8080}
     rag_engine:
         ip: ${RG_IP:127.0.0.1}
         port: ${RG_PORT:8080}
