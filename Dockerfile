@@ -8,23 +8,20 @@ RUN apk add --no-cache git gcc musl-dev ca-certificates tzdata
 
 WORKDIR /workspace
 
-# Copy required local modules for 'replace' directives
-COPY microservice-toolbox ./microservice-toolbox
-COPY universal-logger ./universal-logger
-COPY distributed-config ./distributed-config
-COPY safe-socket ./safe-socket
-COPY flexible-logger ./flexible-logger
+# Clone shared library modules for replace directives in builder stage
+RUN git clone --depth 1 https://github.com/Bastien-Antigravity/microservice-toolbox.git /workspace/microservice-toolbox && \
+    git clone --depth 1 https://github.com/Bastien-Antigravity/distributed-config.git /workspace/distributed-config && \
+    git clone --depth 1 https://github.com/Bastien-Antigravity/safe-socket.git /workspace/safe-socket && \
+    git clone --depth 1 https://github.com/Bastien-Antigravity/universal-logger.git /workspace/universal-logger && \
+    git clone --depth 1 https://github.com/Bastien-Antigravity/flexible-logger.git /workspace/flexible-logger
 
-# Copy the target service
-COPY notif-server ./notif-server
-
+# Copy notif-server source
 WORKDIR /workspace/notif-server
+COPY . .
 
-# Ensure dependencies are tidy for linux build
-RUN go mod tidy && go mod download
-
-# Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /notif-server-bin ./cmd/notif-server
+# Ensure dependencies are tidy and build binary
+RUN go mod tidy && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /notif-server-bin ./cmd/notif-server
 
 # === RUNTIME STAGE ===
 FROM alpine:3.20
@@ -39,3 +36,4 @@ COPY --from=builder /notif-server-bin /notif-server/notif-server
 
 # Set the entrypoint
 ENTRYPOINT ["/notif-server/notif-server"]
+
