@@ -9,11 +9,11 @@ RUN apk add --no-cache git gcc musl-dev ca-certificates tzdata
 WORKDIR /workspace
 
 # Clone shared library modules for replace directives in builder stage
-RUN git clone --depth 1 https://github.com/Bastien-Antigravity/microservice-toolbox.git /workspace/microservice-toolbox && \
-    git clone --depth 1 https://github.com/Bastien-Antigravity/distributed-config.git /workspace/distributed-config && \
-    git clone --depth 1 https://github.com/Bastien-Antigravity/safe-socket.git /workspace/safe-socket && \
-    git clone --depth 1 https://github.com/Bastien-Antigravity/universal-logger.git /workspace/universal-logger && \
-    git clone --depth 1 https://github.com/Bastien-Antigravity/flexible-logger.git /workspace/flexible-logger
+RUN git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/microservice-toolbox.git /workspace/microservice-toolbox && \
+    git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/distributed-config.git /workspace/distributed-config && \
+    git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/safe-socket.git /workspace/safe-socket && \
+    git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/universal-logger.git /workspace/universal-logger && \
+    git clone --depth 1 -b develop https://github.com/Bastien-Antigravity/flexible-logger.git /workspace/flexible-logger
 
 # Copy notif-server source
 WORKDIR /workspace/notif-server
