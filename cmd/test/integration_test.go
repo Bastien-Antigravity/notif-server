@@ -94,7 +94,8 @@ func TestE2EFlow(t *testing.T) {
 	nt.RegisterMockSender(ms)
 
 	ac := &toolbox_config.AppConfig{Config: conf}
-	srv := server.NewServer(ac, ul, nt)
+	ctrl := notifie.NewController(nt)
+	srv := server.NewServer(ac, ul, nt, ctrl)
 
 	// 3. Start Server
 	go func() {

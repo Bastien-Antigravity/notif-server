@@ -83,7 +83,7 @@ func main() {
 		webAddr, err := appConfig.GetListenAddr("web_interface")
 		if err != nil {
 			uniLog.Warning("Could not resolve web_interface address for OpenMFE registration: %v", err)
-			webAddr = "127.0.0.1:8080"
+			webAddr = "127.0.0.1:5000"
 		}
 		regUrl := fmt.Sprintf("http://%s/api/v1/register", webAddr)
 

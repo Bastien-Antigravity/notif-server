@@ -1,16 +1,7 @@
-# Metadata
-- Version: 0.0.1
-- Classification: Level 1 Microservice
-
 ---
 microservice: notif-server
 type: governance
 status: active
-tags:
-- '#service/notif-server'
-- '#type/governance'
-- '#state/active'
-- '#zone/3-fleet'
 ---
 
 # ⚡ AI Initialization: notif-server
@@ -21,5 +12,5 @@ tags:
 > "1. Read the ecosystem map in **[[Ecosystem-Map-MOC]]**."
 > "2. Load project constraints from **[[AI-Project-DNA]]**."
 > "3. Restore session state from **[[AI-Session-State]]**."
-> "4. **Sentinel Audit**: Run `python core-kms-brain/Scripts/Brain-Health-Audit.py` and resolve any drift."
-> "5. **Squad Protocol**: You are now the **Lead Developer**. Identify and hire the required **Specialists** from `core-kms-brain/Role-Prompts/03-Developer/Squad/`."
+> "4. **Sentinel Audit**: Run `python3 08-Base-Scripts/main.py preflight-check` and resolve any drift."
+> "5. **Squad Protocol**: You are now the **Lead Developer**. Identify and hire the required **Specialists** from `07-Core-KMS/Role-Prompts/03-Developer/Squad/`."
