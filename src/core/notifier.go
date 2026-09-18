@@ -44,6 +44,7 @@ type Notifier struct {
 	RawNotifChan   chan []byte
 	senderQueues   map[string]chan *utils.NotifMessage
 	senderShutdown map[string]chan struct{} // Per-platform shutdown signal
+	configSenders  map[string]bool          // Senders dynamically provisioned from YAML configuration
 	currentConf    map[string]map[string]string
 	levelToTags    map[string][]string // Implicit routing map: Level -> [Tag1, Tag2]
 	mu             sync.RWMutex
@@ -64,6 +65,7 @@ func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, 
 		TagToSenderMap: make(map[string]interfaces.INotifSender),
 		senderQueues:   make(map[string]chan *utils.NotifMessage),
 		senderShutdown: make(map[string]chan struct{}),
+		configSenders:  make(map[string]bool),
 		currentConf:    make(map[string]map[string]string),
 		levelToTags:    make(map[string][]string),
 		shutdown:       make(chan struct{}),
@@ -76,7 +78,9 @@ func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, 
 
 	// 2. Register for Live Updates
 	conf.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
-		curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
+		if curNotifier.Logger != nil {
+			curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
+		}
 		curNotifier.Reload(newConf)
 	})
 
@@ -167,8 +171,8 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 		}
 	}
 
-	// 3. Stop Notifiers that were removed from config
-	for existingTag := range notifier.TagToSenderMap {
+	// 3. Stop Notifiers that were managed by config but removed from newConf
+	for existingTag := range notifier.configSenders {
 		if !activeTags[existingTag] {
 			if notifier.Logger != nil {
 				notifier.Logger.Info("Removing notifier: %s", existingTag)
@@ -222,6 +226,7 @@ func (notifier *Notifier) stopSender(tag string) {
 	}
 	delete(notifier.TagToSenderMap, tag)
 	delete(notifier.senderQueues, tag)
+	delete(notifier.configSenders, tag)
 }
 
 func (notifier *Notifier) startSender(platform, tag string, conf map[string]string) {
@@ -245,6 +250,7 @@ func (notifier *Notifier) startSender(platform, tag string, conf map[string]stri
 	}
 
 	notifier.TagToSenderMap[tag] = sender
+	notifier.configSenders[tag] = true
 
 	// Create buffered queue and shutdown signal
 	queue := make(chan *utils.NotifMessage, 1000)
@@ -337,8 +343,8 @@ func (notifier *Notifier) Stop() {
 
 // -----------------------------------------------------------------------------
 
-// RegisterMockSender is a helper for testing to manually register a sender with its worker pool.
-func (notifier *Notifier) RegisterMockSender(sender interfaces.INotifSender) {
+// RegisterSender registers a custom or programmatic notification sender with its dedicated worker pool.
+func (notifier *Notifier) RegisterSender(sender interfaces.INotifSender) {
 	notifier.mu.Lock()
 	defer notifier.mu.Unlock()
 

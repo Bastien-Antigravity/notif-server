@@ -61,7 +61,7 @@ func TestNotifierMessageFlow(t *testing.T) {
 
 	// Create and register mock sender
 	mock := &mockSender{}
-	n.RegisterMockSender(mock)
+	n.RegisterSender(mock)
 
 	// Create a test message
 	msg := &utils.NotifMessage{
@@ -90,7 +90,7 @@ func TestRawMessageConsumption(t *testing.T) {
 
 	mock := &mockSender{}
 	mock.tag = "rawTag"
-	n.RegisterMockSender(mock)
+	n.RegisterSender(mock)
 
 	// Create a message and serialize it
 	originalMsg := &utils.NotifMessage{
@@ -120,7 +120,7 @@ func TestImplicitRouting(t *testing.T) {
 
 	// Setup implicit routing: CRITICAL -> implicitTag
 	mock := &mockSender{tag: "implicitTag"}
-	n.RegisterMockSender(mock)
+	n.RegisterSender(mock)
 
 	n.mu.Lock()
 	n.levelToTags["CRITICAL"] = []string{"implicitTag"}
@@ -150,7 +150,7 @@ func TestWorkerPoolCapacity(t *testing.T) {
 
 	// Create a sender that blocks to test queue fill
 	blockingSender := &blockingMockSender{delay: 1 * time.Second}
-	n.RegisterMockSender(blockingSender)
+	n.RegisterSender(blockingSender)
 
 	// Send 5 messages
 	msg := &utils.NotifMessage{Message: "Msg", Tags: []string{"blockTag"}}
@@ -161,7 +161,7 @@ func TestWorkerPoolCapacity(t *testing.T) {
 	assert.NoError(t, n.Notify(msg))
 
 	// In our processMessage, it logs a warning and drops if worker queue is full.
-	// We've registered with default 1000 buffer in RegisterMockSender,
+	// We've registered with default 1000 buffer in RegisterSender,
 	// so let's just verify it processes.
 	for i := 0; i < 10; i++ {
 		_ = n.Notify(msg)

@@ -23,4 +23,4 @@ go test -v ./...
 3.  **Integration Tests** (`cmd/test/`): End-to-end verification of the full ingestion-to-delivery flow using mock senders.
 
 ## 🧱 Mocking Standards
-To test new features, use `nt.RegisterMockSender(ms)`. This helper ensures that the mock platform is correctly registered in the routing table and has its own worker pool initialized.
+To test new features, use `nt.RegisterSender(ms)`. This helper ensures that the platform is correctly registered in the routing table and has its own worker pool initialized.

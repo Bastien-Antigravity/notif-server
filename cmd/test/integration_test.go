@@ -60,6 +60,7 @@ func (m *mockLogger) GetLevel() utils.Level                           { return u
 func (m *mockLogger) SetCallerSkip(skip int)                          {}
 func (m *mockLogger) Close()                                          {}
 func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
+func (m *mockLogger) LogWithCaller(level utils.Level, msg, file, line, function, module string) {}
 func (m *mockLogger) AddMetadata(key string, value any)               {}
 
 // -----------------------------------------------------------------------------
@@ -89,9 +90,9 @@ func TestE2EFlow(t *testing.T) {
 	ul := logger.NewUniLog(ml)
 	nt := notifie.NewNotifier(conf, ul, "E2E-Integration")
 
-	// Register a mock sender to capture the final output
+	// Register a sender to capture the final output
 	ms := &mockSender{received: make(chan string, 1)}
-	nt.RegisterMockSender(ms)
+	nt.RegisterSender(ms)
 
 	ac := &toolbox_config.AppConfig{Config: conf}
 	ctrl := notifie.NewController(nt)

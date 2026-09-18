@@ -46,7 +46,7 @@ func TestWorkerPoolDispatch(t *testing.T) {
 	n := NewNotifier(conf, nil, "PoolTest")
 
 	sender := &counterMockSender{}
-	n.RegisterMockSender(sender)
+	n.RegisterSender(sender)
 
 	// Burst of 50 messages
 	msg := &utils.NotifMessage{Message: "Log", Tags: []string{"fast"}}
@@ -55,9 +55,9 @@ func TestWorkerPoolDispatch(t *testing.T) {
 	}
 
 	// Wait for workers to drain the queue
-	time.Sleep(500 * time.Millisecond)
-
-	assert.Equal(t, int32(50), atomic.LoadInt32(&sender.count), "All 50 messages should have been processed by the pool")
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&sender.count) == 50
+	}, 3*time.Second, 20*time.Millisecond, "All 50 messages should have been processed by the pool")
 }
 
 // -----------------------------------------------------------------------------
@@ -72,8 +72,8 @@ func TestWorkerPoolIsolation(t *testing.T) {
 	// Register with specific tags if needed, but here we just register them
 	// Note: counterMockSender.GetTag returns "fast"
 	// blockingMockSender.GetTag returns "blockTag" (from notifier_test.go)
-	n.RegisterMockSender(fastSender)
-	n.RegisterMockSender(slowSender)
+	n.RegisterSender(fastSender)
+	n.RegisterSender(slowSender)
 
 	// Send messages to both
 	msgBoth := &utils.NotifMessage{Message: "Sync", Tags: []string{"fast", "blockTag"}}
@@ -81,11 +81,9 @@ func TestWorkerPoolIsolation(t *testing.T) {
 		_ = n.Notify(msgBoth)
 	}
 
-	// Wait a moment for processing to complete
-	time.Sleep(300 * time.Millisecond)
-
 	// Fast pool should be done, slow pool should still be working
-	assert.Equal(t, int32(10), atomic.LoadInt32(&fastSender.count), "Fast sender should have finished all 10")
-	// Since there are 5 workers by default, up to 5 could have started processing
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&fastSender.count) == 10
+	}, 2*time.Second, 20*time.Millisecond, "Fast sender should have finished all 10")
 	assert.True(t, atomic.LoadInt32(&slowSender.calledCount) <= 5, "Slow sender should not have finished everything")
 }

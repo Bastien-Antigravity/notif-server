@@ -63,7 +63,13 @@ func (m *mockLogger) Close()                            {}
 func (m *mockLogger) AddMetadata(key string, value any) {}
 
 // Required by UniLog
-func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
+func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	m.CapturedLogs = append(m.CapturedLogs, msg)
+}
+func (m *mockLogger) LogWithCaller(level utils.Level, msg, file, line, function, module string) {
+	m.CapturedLogs = append(m.CapturedLogs, msg)
+}
 
 // -----------------------------------------------------------------------------
 
