@@ -19,7 +19,6 @@ import (
 
 	notifMsg "github.com/Bastien-Antigravity/notif-server/src/schemas/capnp"
 
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 	capnplib "capnproto.org/go/capnp/v3"
@@ -27,7 +26,6 @@ import (
 
 type NotifNcapHandler struct {
 	Name         string
-	config       *distributed_config.Config
 	notifMessage *notifMsg.NotifierMsg
 	memSeg       *capnplib.Segment
 	msgSerDeSer  *capnplib.Message
@@ -35,7 +33,7 @@ type NotifNcapHandler struct {
 
 // -----------------------------------------------------------------------------
 
-func NewNotifHandler(name string, parentClassConfig *distributed_config.Config) *NotifNcapHandler {
+func NewNotifHandler(name string) *NotifNcapHandler {
 	capnplibMsg, memSeg, err := capnplib.NewMessage(capnplib.SingleSegment(nil))
 	if err != nil {
 		panic(fmt.Sprintf("Error while trying to initialize Notif Handler :'%v'\n", err))
@@ -45,7 +43,7 @@ func NewNotifHandler(name string, parentClassConfig *distributed_config.Config) 
 	if err != nil {
 		panic(fmt.Sprintf("Error while trying to initialize Notif Handler :'%v'\n", err))
 	}
-	return &NotifNcapHandler{Name: name, config: parentClassConfig, memSeg: memSeg, notifMessage: &notifObj, msgSerDeSer: capnplibMsg}
+	return &NotifNcapHandler{Name: name, memSeg: memSeg, notifMessage: &notifObj, msgSerDeSer: capnplibMsg}
 }
 
 // -----------------------------------------------------------------------------

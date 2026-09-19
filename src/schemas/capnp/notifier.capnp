@@ -11,8 +11,7 @@
 # go get -u -t zombiezen.com/go/capnproto2
 # GO111MODULE=off go get -u capnproto.org/go/capnp/v3/
 
-# cd "/users/IMac/Desktop/govenv/api/capnp/notifieMsg"
-# capnp compile -I "/users/IMac/Desktop/govenv/api/capnp/notifieMsg/go-capnp/std" -ogo notifie.capnp
+# capnp compile -I $GOPATH/src/capnproto.org/go/capnp/std -ogo notifier.capnp
 
 
 using Go = import "/go.capnp";

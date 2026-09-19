@@ -1,5 +1,21 @@
 package telegram
 
+/*
+ESSENTIAL PROCESS:
+Orchestrates dynamic interactive Telegram menus and telemetry streaming for notif-server via Tele-Remote.
+Allows operators to trigger test alerts, reload senders, and configure alerting providers remotely.
+
+DATA FLOW:
+1. Builds action tree from current alerting configuration and active notifiers.
+2. Registers action tree with TeleClient over gRPC.
+3. Handles Telegram user button clicks and input prompts, delegating to NotifController.
+
+KEY PARAMETERS:
+- tc: TeleClient connected to tele-remote daemon.
+- controller: NotifController instance managing alerting state.
+- logger: Unified logger instance.
+*/
+
 import (
 	"fmt"
 
@@ -168,7 +184,7 @@ func SetupTelegram(appConfig *toolbox_config.AppConfig, controller notif_core.No
 		logger.Warning("Tele-Remote capability not found or configured: %v", err)
 		return
 	}
-	port := 50051
+	port := 1863
 	if teleCap.Port != "" {
 		fmt.Sscanf(teleCap.Port, "%d", &port)
 	}

@@ -4,7 +4,6 @@ go 1.25.4
 
 require (
 	capnproto.org/go/capnp/v3 v3.1.0-alpha.2
-	github.com/Bastien-Antigravity/distributed-config v1.9.922
 	github.com/Bastien-Antigravity/microservice-toolbox v0.0.1
 	github.com/Bastien-Antigravity/safe-socket v1.8.2
 	github.com/Bastien-Antigravity/universal-logger v0.0.1
@@ -14,6 +13,7 @@ require (
 )
 
 require (
+	github.com/Bastien-Antigravity/distributed-config v1.9.922 // indirect
 	github.com/Bastien-Antigravity/flexible-logger v0.0.1 // indirect
 	github.com/colega/zeropool v0.0.0-20230505084239-6fb4a4f75381 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

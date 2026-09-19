@@ -21,13 +21,13 @@ import (
 
 	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
 
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // -----------------------------------------------------------------------------
@@ -75,15 +75,15 @@ func (m *mockLogger) LogWithCaller(level utils.Level, msg, file, line, function,
 
 func TestServerConnection(t *testing.T) {
 	// 1. Setup config for a test server
-	conf := distributed_config.New("test")
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
 	// Use port 9999 for integration test
-	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9999"}
+	ac.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9999"}
 
 	// 2. Initialize dependencies
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
-	nt := notifier.NewNotifier(conf, ul, "TestServer")
-	ac := &toolbox_config.AppConfig{Config: conf}
+	nt := notifier.NewNotifier(ac, ul, "TestServer")
 	srv := NewServer(ac, ul, nt, nil)
 
 	// 3. Start server in a goroutine

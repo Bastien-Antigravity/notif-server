@@ -3,7 +3,10 @@
 ## Service Mission & Architecture Role
 `notif-server` is the multi-channel notification and alerting hub for the Bastien-Antigravity fleet. It consumes alert requests from microservices and dispatches them across Telegram, Discord, Email, and Webhook sinks. It also exports an OpenMFE micro-frontend that dynamically registers with `web-interface`.
 
-- **Exposed Capability**: `notif_server` (Port: `8095` REST management / OpenMFE host)
+- **Exposed Capability**: `notif_server`
+  - **TCP Ingestion Protocol**: Port `1026` (`appConfig.GetListenAddr("notif_server")`) — framed TCP ingestion via `safe-socket`
+  - **gRPC Service & Control**: Port `1027` (`appConfig.GetGRPCListenAddr("notif_server")`) — Protobuf ingestion and management
+  - **REST & OpenMFE**: Port `1029` (`appConfig.GetRESTAddr("notif_server")`) — HTTP REST management and OpenMFE host
 - **Downstream Integrations**: `web-interface` (`127.0.0.1:5000`), Telegram, Discord APIs
 - **Libraries**: `microservice-toolbox`, `universal-logger`, `distributed-config`
 - **Configuration Link**: `standalone.yaml -> ../docker-deployment/modes/local/config/native.yaml`

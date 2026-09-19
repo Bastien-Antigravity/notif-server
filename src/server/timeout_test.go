@@ -21,21 +21,22 @@ import (
 	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
 	notifier_interfaces "github.com/Bastien-Antigravity/notif-server/src/interfaces"
 
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // -----------------------------------------------------------------------------
 
 func TestIdleTimeoutFix(t *testing.T) {
 	// 1. Setup config (using 9998 to avoid conflict)
-	conf := distributed_config.New("test")
-	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9998"}
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	ac.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "9998"}
 
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
@@ -48,7 +49,6 @@ func TestIdleTimeoutFix(t *testing.T) {
 	}
 	go nt.ConsumeRawMessages()
 
-	ac := &toolbox_config.AppConfig{Config: conf}
 	srv := NewServer(ac, ul, nt, nil)
 
 	// 2. Start server
@@ -75,7 +75,7 @@ func TestIdleTimeoutFix(t *testing.T) {
 	assert.True(t, found, "Logger should have recorded the TCP listening address")
 
 	// Handler for serialization
-	handler := notifier.NewNotifHandler("test", conf)
+	handler := notifier.NewNotifHandler("test")
 
 	// 4. Test Idle Timeout Refresh
 	// We will wait 3s, send a message, then wait another 3s.

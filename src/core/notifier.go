@@ -28,7 +28,7 @@ import (
 	"github.com/Bastien-Antigravity/notif-server/src/notifiers"
 	proto_msg "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf"
 
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
@@ -37,7 +37,7 @@ import (
 type Notifier struct {
 	proto_msg.UnimplementedNotifServiceServer
 	Name           string
-	config         *distributed_config.Config
+	appConfig      *toolbox_config.AppConfig
 	Logger         log_interfaces.Logger
 	TagToSenderMap map[string]interfaces.INotifSender
 	NotifChan      chan *utils.NotifMessage
@@ -55,10 +55,10 @@ type Notifier struct {
 // -----------------------------------------------------------------------------
 
 // NewNotifier creates a new instance of the notification service.
-func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, parentName string) *Notifier {
+func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logger, parentName string) *Notifier {
 	curNotifier := &Notifier{
 		Name:           parentName,
-		config:         conf,
+		appConfig:      appConfig,
 		Logger:         logger,
 		NotifChan:      make(chan *utils.NotifMessage, 100),
 		RawNotifChan:   make(chan []byte, 100),
@@ -74,10 +74,12 @@ func NewNotifier(conf *distributed_config.Config, logger log_interfaces.Logger, 
 	curNotifier.EnsureSafeLogger()
 
 	// 1. Initial Load
-	curNotifier.Reload(*conf.LiveConfig.Load())
+	if liveConf := appConfig.Config.LiveConfig.Load(); liveConf != nil {
+		curNotifier.Reload(*liveConf)
+	}
 
 	// 2. Register for Live Updates
-	conf.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
+	appConfig.Config.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
 		if curNotifier.Logger != nil {
 			curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
 		}
@@ -98,23 +100,6 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 	notifier.mu.Lock()
 	defer notifier.mu.Unlock()
 
-	// 1. Process Secrets (Decryption of ENC(...) blocks)
-	for section, kv := range newConf {
-		for key, val := range kv {
-			if strings.HasPrefix(val, "ENC(") && strings.HasSuffix(val, ")") {
-				decrypted, err := distributed_config.ProcessConfigSecrets([]byte(val))
-				if err == nil {
-					newConf[section][key] = string(decrypted)
-					if notifier.Logger != nil {
-						notifier.Logger.Debug("Decrypted secret for %s:%s", section, key)
-					}
-				} else if notifier.Logger != nil {
-					notifier.Logger.Error("Failed to decrypt secret for %s:%s: %v", section, key, err)
-				}
-			}
-		}
-	}
-
 	supportedTypes := map[string]bool{
 		"TELEGRAM": true,
 		"DISCORD":  true,
@@ -128,6 +113,9 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 	// 2. Identify and Start/Update Notifiers from Config
 	for sectionName, sectionConf := range newConf {
 		platType, ok := sectionConf["TYPE"]
+		if !ok {
+			platType, ok = sectionConf["type"]
+		}
 		if !ok {
 			// Fallback: If no TYPE but name matches a platform, treat as that type
 			if supportedTypes[strings.ToUpper(sectionName)] {
@@ -198,11 +186,6 @@ type NotifierStatus struct {
 	Healthy bool
 }
 
-// GetConfig returns the underlying distributed configuration instance.
-func (notifier *Notifier) GetConfig() *distributed_config.Config {
-	return notifier.config
-}
-
 // GetActiveNotifiers returns information about all currently active notification senders.
 func (notifier *Notifier) GetActiveNotifiers() []NotifierStatus {
 	notifier.mu.RLock()
@@ -231,21 +214,30 @@ func (notifier *Notifier) stopSender(tag string) {
 
 func (notifier *Notifier) startSender(platform, tag string, conf map[string]string) {
 	var sender interfaces.INotifSender
-	var err string
+	var err error
+
+	decrypt := notifier.appConfig.DecryptSecret
 
 	switch platform {
 	case "TELEGRAM":
-		sender, err = notifiers.NewTelegramSender(conf, tag)
+		sender, err = notifiers.NewTelegramSender(conf, tag, notifier.Logger, decrypt)
 	case "DISCORD":
-		sender, err = notifiers.NewDiscordSender(conf, tag)
+		sender, err = notifiers.NewDiscordSender(conf, tag, notifier.Logger, decrypt)
 	case "MATRIX":
-		sender, err = notifiers.NewMatrixSender(conf, tag)
+		sender, err = notifiers.NewMatrixSender(conf, tag, notifier.Logger, decrypt)
 	case "GMAIL":
-		sender, err = notifiers.NewGmailSender(conf, tag)
+		sender, err = notifiers.NewGmailSender(conf, tag, notifier.Logger, decrypt)
+	default:
+		notifier.Logger.Error("Unsupported notification platform '%s' for provider '%s'", platform, tag)
+		return
 	}
 
-	if err != "" {
-		notifier.Logger.Error("Failed to initialize %s (%s): %s", platform, tag, err)
+	if err != nil {
+		notifier.Logger.Error("Failed to initialize %s (%s): %v", platform, tag, err)
+		return
+	}
+	// If sender == nil and err == nil, provider is unconfigured (configuration is optional)
+	if sender == nil {
 		return
 	}
 

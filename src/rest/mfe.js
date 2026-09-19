@@ -9,7 +9,7 @@ class NotifServerMFE extends HTMLElement {
     }
 
     async connectedCallback() {
-        this.baseUrl = this.getAttribute('base-url') || 'http://localhost:3311';
+        this.baseUrl = this.getAttribute('base-url') || 'http://localhost:1029';
         this.renderSkeleton();
         await this.loadAll();
     }
@@ -600,7 +600,7 @@ class NotifServerMFE extends HTMLElement {
                 const data = await res.json();
                 this.supportedTypes = data.types || [];
                 const select = this.querySelector('#add-type');
-                select.innerHTML = '<option value="" disabled selected>Select driver type...</option>' + 
+                select.innerHTML = '<option value="" disabled selected>Select driver type...</option>' +
                     this.supportedTypes.map(t => `<option value="${this.escapeAttribute(t)}">${this.escapeHTML(t)}</option>`).join('');
             }
         } catch (err) {
@@ -673,7 +673,7 @@ class NotifServerMFE extends HTMLElement {
             const contentId = `mfe-collapse-${index}`;
             const sectionLabel = this.escapeHTML(section);
             const typeLabel = this.escapeHTML(settings['TYPE'] || 'UNKNOWN');
-            
+
             sectionDiv.innerHTML = `
                 <div class="mfe-section-header" data-target="${contentId}">
                     <span><i class="fa fa-folder-open-o" style="color:#6B0DF2; margin-right:8px;"></i> <strong>${sectionLabel}</strong> <span style="font-size:0.75rem; background:#ebf8ff; color:#2b6cb0; padding:2px 6px; border-radius:10px; margin-left:8px;">${typeLabel}</span></span>
@@ -691,8 +691,8 @@ class NotifServerMFE extends HTMLElement {
                             </thead>
                             <tbody>
                                 ${keys.map(key => {
-                                    const value = this.stringifyValue(settings[key]);
-                                    return `
+                const value = this.stringifyValue(settings[key]);
+                return `
                                     <tr>
                                         <td class="mfe-mono">${this.escapeHTML(key)}</td>
                                         <td>

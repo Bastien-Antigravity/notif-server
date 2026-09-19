@@ -84,6 +84,6 @@ notif-server/
 The application is bootstrapped using YAML profiles managed by `distributed-config` and `microservice-toolbox`.
 
 *   **Profiles**: Configured profiles like `standalone` or `test` load respective YAML files:
-    *   [`src/core/core.yaml`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/src/core/core.yaml) configures default routing behaviors.
+    *   [`standalone.yaml`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/standalone.yaml) links to central ecosystem configuration (`native.yaml`).
     *   [`src/server/test.yaml`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/src/server/test.yaml) controls capability endpoints during verification.
 *   **Version Reference**: Version information is centralized in [`VERSION.txt`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/VERSION.txt) (currently `1.2.0`) to ensure consistency across automated build packaging pipelines.

@@ -21,13 +21,13 @@ import (
 	notifie "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/server"
 
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	factory "github.com/Bastien-Antigravity/safe-socket"
 	"github.com/Bastien-Antigravity/universal-logger/src/logger"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // -----------------------------------------------------------------------------
@@ -82,19 +82,19 @@ func (m *mockSender) GetLogLevel() string { return "INFO" }
 
 func TestE2EFlow(t *testing.T) {
 	// 1. Setup Configuration
-	conf := distributed_config.New("test")
-	conf.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "10001"}
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	ac.Capabilities["notif_server"] = map[string]interface{}{"ip": "127.0.0.1", "port": "10001"}
 
 	// 2. Initialize Components
 	ml := &mockLogger{}
 	ul := logger.NewUniLog(ml)
-	nt := notifie.NewNotifier(conf, ul, "E2E-Integration")
+	nt := notifie.NewNotifier(ac, ul, "E2E-Integration")
 
 	// Register a sender to capture the final output
 	ms := &mockSender{received: make(chan string, 1)}
 	nt.RegisterSender(ms)
 
-	ac := &toolbox_config.AppConfig{Config: conf}
 	ctrl := notifie.NewController(nt)
 	srv := server.NewServer(ac, ul, nt, ctrl)
 
@@ -113,7 +113,7 @@ func TestE2EFlow(t *testing.T) {
 	defer client.Close()
 
 	// Use the core handler to serialize a message
-	handler := notifie.NewNotifHandler("ClientSimulator", conf)
+	handler := notifie.NewNotifHandler("ClientSimulator")
 	testMsg := &utils.NotifMessage{
 		Message: "CRITICAL: Reactor Leak Detected!",
 		Tags:    []string{"alert"},

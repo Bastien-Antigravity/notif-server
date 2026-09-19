@@ -18,10 +18,11 @@ import (
 	"testing"
 	"time"
 
-	distributed_config "github.com/Bastien-Antigravity/distributed-config"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // -----------------------------------------------------------------------------
@@ -43,10 +44,10 @@ func (m *mockSender) SendMessage(ctx context.Context, msg, to, subject string) e
 }
 
 func (m *mockSender) GetTag() string {
-	if m.tag != "" {
-		return m.tag
+	if m.tag == "" {
+		return "mock"
 	}
-	return "testTag"
+	return m.tag
 }
 func (m *mockSender) GetLogLevel() string { return "INFO" }
 
@@ -54,13 +55,14 @@ func (m *mockSender) GetLogLevel() string { return "INFO" }
 
 func TestNotifierMessageFlow(t *testing.T) {
 	// Initialize config for the test
-	conf := distributed_config.New("test")
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
 
 	// Create Notifier instance
-	n := NewNotifier(conf, nil, "TestParent")
+	n := NewNotifier(ac, nil, "TestParent")
 
 	// Create and register mock sender
-	mock := &mockSender{}
+	mock := &mockSender{tag: "testTag"}
 	n.RegisterSender(mock)
 
 	// Create a test message
@@ -70,7 +72,7 @@ func TestNotifierMessageFlow(t *testing.T) {
 	}
 
 	// Notify message
-	err := n.Notify(msg)
+	err = n.Notify(msg)
 	assert.NoError(t, err)
 
 	// Since processing is async (worker pool), wait a bit
@@ -85,8 +87,9 @@ func TestNotifierMessageFlow(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestRawMessageConsumption(t *testing.T) {
-	conf := distributed_config.New("test")
-	n := NewNotifier(conf, nil, "RawTest")
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	n := NewNotifier(ac, nil, "RawTest")
 
 	mock := &mockSender{}
 	mock.tag = "rawTag"
@@ -98,11 +101,11 @@ func TestRawMessageConsumption(t *testing.T) {
 		Tags:    []string{"rawTag"},
 	}
 
-	handler := NewNotifHandler("test", conf)
+	handler := NewNotifHandler("test")
 	rawData := handler.NotifNcapSerialize(originalMsg)
 
 	// Send raw data
-	err := n.SendRaw(rawData)
+	err = n.SendRaw(rawData)
 	assert.NoError(t, err)
 
 	// Wait for processing
@@ -115,8 +118,9 @@ func TestRawMessageConsumption(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestImplicitRouting(t *testing.T) {
-	conf := distributed_config.New("test")
-	n := NewNotifier(conf, nil, "ImplicitTest")
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	n := NewNotifier(ac, nil, "ImplicitTest")
 
 	// Setup implicit routing: CRITICAL -> implicitTag
 	mock := &mockSender{tag: "implicitTag"}
@@ -133,7 +137,7 @@ func TestImplicitRouting(t *testing.T) {
 		Tags:    []string{},
 	}
 
-	err := n.Notify(msg)
+	err = n.Notify(msg)
 	assert.NoError(t, err)
 
 	time.Sleep(200 * time.Millisecond)
@@ -145,8 +149,9 @@ func TestImplicitRouting(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestWorkerPoolCapacity(t *testing.T) {
-	conf := distributed_config.New("test")
-	n := NewNotifier(conf, nil, "CapacityTest")
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	n := NewNotifier(ac, nil, "CapacityTest")
 
 	// Create a sender that blocks to test queue fill
 	blockingSender := &blockingMockSender{delay: 1 * time.Second}

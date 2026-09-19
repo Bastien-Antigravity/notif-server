@@ -18,7 +18,6 @@ DATA FLOW:
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -44,9 +43,12 @@ func main() {
 
 	uniLog.Info("Starting Notif Server...")
 
-	// Create Notifier with injected logger
-	notifObject := notif_core.NewNotifier(appConfig.Config, uniLog, "notif-server")
+	// Create Notifier with injected logger and toolbox AppConfig
+	notifObject := notif_core.NewNotifier(appConfig, uniLog, "notif-server")
 	uniLog.Info("Notifier '%s' initialized", notifObject.Name)
+
+	// Bind Universal Logger notification queue so messages logged through universal-logger route into Notifier (ecosystem standard)
+	uniLog.SetLocalNotifQueue(notifObject.NotifChan)
 
 	// Create Controller Abstraction
 	controller := notif_core.NewController(notifObject)
@@ -60,20 +62,10 @@ func main() {
 		uniLog.Critical("Failed to resolve REST address for notif_server: %v", err)
 		os.Exit(1)
 	}
-	_, restPortStr, err := net.SplitHostPort(restAddr)
-	if err != nil {
-		uniLog.Critical("Failed to parse REST address '%s': %v", restAddr, err)
-		os.Exit(1)
-	}
-	var restPort int
-	if _, err := fmt.Sscanf(restPortStr, "%d", &restPort); err != nil {
-		uniLog.Critical("Invalid REST port '%s': %v", restPortStr, err)
-		os.Exit(1)
-	}
 
 	restHandler := rest.NewRESTHandler(controller, uniLog)
 	go func() {
-		if err := restHandler.StartServer(restPort); err != nil {
+		if err := restHandler.StartServer(restAddr); err != nil {
 			uniLog.Error("REST management server failed: %v", err)
 		}
 	}()
@@ -130,6 +122,12 @@ func main() {
 	lm.Register("NotificationServer", func() error {
 		uniLog.Info("Shutting down Notification Server...")
 		srv.Stop()
+		if restHandler != nil {
+			_ = restHandler.Stop(context.Background())
+		}
+		if notifObject != nil {
+			notifObject.Stop()
+		}
 		return nil
 	})
 

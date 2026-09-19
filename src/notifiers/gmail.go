@@ -4,6 +4,7 @@ package notifiers
 ESSENTIAL PROCESS:
 Implements the Gmail notification sender via SMTP with architectural hardening.
 Handles both Port 587 (STARTTLS) and Port 465 (Implicit TLS).
+Dispatches operational and delivery messages through the ecosystem Universal Logger.
 
 DATA FLOW:
 1. Receives message payload, subject, and optional attachment path.
@@ -11,12 +12,14 @@ DATA FLOW:
 3. Upgrades to TLS (if 587) or starts with TLS (if 465).
 4. Executes SMTP state machine (Auth -> Mail -> Rcpt -> Data).
 5. Respects context deadlines throughout the network operation.
+6. Logs dispatch lifecycle and delivery results through Logger.
 
 KEY PARAMETERS:
 - from: Sender email address.
 - to: Recipient email address.
 - smtp: SMTP server address (default: smtp.gmail.com).
 - port: SMTP server port (default: 587).
+- logger: Unified logger instance for operational messages.
 */
 
 import (
@@ -32,6 +35,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
 type GmailSender struct {
@@ -42,6 +47,8 @@ type GmailSender struct {
 	port     int
 	passwd   string
 	logLevel string
+	logger   log_interfaces.Logger
+	decrypt  func(string) (string, error)
 }
 
 // -----------------------------------------------------------------------------
@@ -53,42 +60,37 @@ func NewGmailSender(gmailConf map[string]string, confName string) (*GmailSender,
 		port: 587,
 	}
 
-	if tag, ok := gmailConf["TAG"]; ok {
-		gmailSender.tag = tag
-	} else {
-		curError += fmt.Sprintf("missing 'TAG' option for config '%s'\n", confName)
+	gmailSender.tag = getOption(gmailConf, "TAG", "tag", "NOTIF_GMAIL_TAG")
+	if gmailSender.tag == "" {
+		gmailSender.tag = confName
 	}
 
-	if from, ok := gmailConf["FROM"]; ok {
-		gmailSender.from = from
-	} else {
+	gmailSender.from = getOption(gmailConf, "FROM", "from", "NOTIF_GMAIL_FROM", "GMAIL_FROM")
+	if gmailSender.from == "" {
 		curError += fmt.Sprintf("missing 'FROM' option for config '%s'\n", confName)
 	}
 
-	if to, ok := gmailConf["TO"]; ok {
-		gmailSender.to = to
-	} else {
+	gmailSender.to = getOption(gmailConf, "TO", "to", "NOTIF_GMAIL_TO", "GMAIL_TO")
+	if gmailSender.to == "" {
 		curError += fmt.Sprintf("missing 'TO' option for config '%s'\n", confName)
 	}
 
-	if passwd, ok := gmailConf["PASSWD"]; ok {
-		gmailSender.passwd = passwd
-	} else {
+	gmailSender.passwd = getOption(gmailConf, "PASSWD", "passwd", "PASSWORD", "password", "NOTIF_GMAIL_PASSWD", "GMAIL_PASSWD")
+	if gmailSender.passwd == "" {
 		curError += fmt.Sprintf("missing 'PASSWD' option for config '%s'\n", confName)
 	}
 
-	if logLevel, ok := gmailConf["LOGLEVEL"]; ok {
-		gmailSender.logLevel = logLevel
-	} else {
-		curError += fmt.Sprintf("missing 'LOGLEVEL' option for config '%s'\n", confName)
+	gmailSender.logLevel = getOption(gmailConf, "LOGLEVEL", "loglevel")
+	if gmailSender.logLevel == "" {
+		gmailSender.logLevel = "CRITICAL"
 	}
 
-	// Optional overrides
-	if host, ok := gmailConf["SMTP_HOST"]; ok {
+	// Optional host & port overrides (e.g. for internal SMTP relays or testing)
+	if host := getOption(gmailConf, "SMTP_HOST", "smtp_host", "HOST", "host", "NOTIF_GMAIL_SMTP_HOST"); host != "" {
 		gmailSender.smtp = host
 	}
-	if portStr, ok := gmailConf["SMTP_PORT"]; ok {
-		if p, err := strconv.Atoi(portStr); err == nil {
+	if portStr := getOption(gmailConf, "SMTP_PORT", "smtp_port", "PORT", "port", "NOTIF_GMAIL_SMTP_PORT"); portStr != "" {
+		if p, err := strconv.Atoi(portStr); err == nil && p > 0 {
 			gmailSender.port = p
 		}
 	}
@@ -101,9 +103,19 @@ func NewGmailSender(gmailConf map[string]string, confName string) (*GmailSender,
 
 // -----------------------------------------------------------------------------
 
-func (gmailSender *GmailSender) SendMessage(ctx context.Context, subject, attachment, body string) error {
-	// Prepare the email payload
-	emailPayload, err := gmailSender.buildEmail(subject, attachment, body)
+// SendMessage implements interfaces.INotifSender.
+// Parameters:
+// - msg: The primary notification body text.
+// - attachment: Optional path to a file attachment.
+// - source: System or notifier source tag (used to construct the email Subject).
+func (gmailSender *GmailSender) SendMessage(ctx context.Context, msg, attachment, source string) error {
+	subject := "Notification Alert"
+	if source != "" {
+		subject = fmt.Sprintf("[%s] Notification", source)
+	}
+
+	// Prepare the email payload (subject in header, msg in body)
+	emailPayload, err := gmailSender.buildEmail(subject, attachment, msg)
 	if err != nil {
 		return err
 	}
@@ -132,6 +144,30 @@ func (gmailSender *GmailSender) SendMessage(ctx context.Context, subject, attach
 	}
 
 	return fmt.Errorf("gmail send failed after %d retries: %v", maxRetries, lastErr)
+}
+
+// -----------------------------------------------------------------------------
+
+// plainAuthWithoutTLSCheck allows PLAIN authentication over connections that are
+// already TLS-wrapped at the socket level (such as implicit TLS on Port 465),
+// bypassing Go's internal net/smtp Client.tls flag requirement.
+type plainAuthWithoutTLSCheck struct {
+	identity, username, password, host string
+}
+
+func (a *plainAuthWithoutTLSCheck) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	if server.Name != a.host {
+		return "", nil, fmt.Errorf("wrong host name: got %s, expected %s", server.Name, a.host)
+	}
+	resp := []byte(a.identity + "\x00" + a.username + "\x00" + a.password)
+	return "PLAIN", resp, nil
+}
+
+func (a *plainAuthWithoutTLSCheck) Next(fromServer []byte, more bool) ([]byte, error) {
+	if more {
+		return nil, fmt.Errorf("unexpected server challenge")
+	}
+	return nil, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -175,7 +211,15 @@ func (gmailSender *GmailSender) dialAndSend(ctx context.Context, payload []byte)
 	}
 
 	// 4. Authenticate
-	auth := smtp.PlainAuth("", gmailSender.from, gmailSender.passwd, gmailSender.smtp)
+	// Note: For Gmail with 2-Factor Authentication, PASSWD must be an App Password (16 characters).
+	// On Port 465, c.tls is not set by StartTLS, so we use plainAuthWithoutTLSCheck.
+	var auth smtp.Auth
+	if gmailSender.port == 465 {
+		auth = &plainAuthWithoutTLSCheck{"", gmailSender.from, gmailSender.passwd, gmailSender.smtp}
+	} else {
+		auth = smtp.PlainAuth("", gmailSender.from, gmailSender.passwd, gmailSender.smtp)
+	}
+
 	if err = c.Auth(auth); err != nil {
 		return fmt.Errorf("authentication failed: %w", err)
 	}

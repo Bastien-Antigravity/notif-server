@@ -1,10 +1,30 @@
 package rest
 
+/*
+ESSENTIAL PROCESS:
+Provides HTTP REST endpoints and hosts OpenMFE web component assets for notif-server.
+Allows external clients and web-interface to inspect notifiers, send test notifications,
+and dynamically reconfigure alerting providers.
+
+DATA FLOW:
+1. Incoming HTTP requests are matched against registered REST routes.
+2. Requests are delegated to the underlying gRPC control service implementation.
+3. Responses are serialized as JSON and returned with CORS headers.
+
+KEY PARAMETERS:
+- logger: Unified logger instance.
+- control: ControlServiceImpl instance wrapping NotifController.
+- server: HTTP server reference for graceful shutdown.
+*/
+
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
@@ -22,6 +42,8 @@ var mfeJS string
 type RESTHandler struct {
 	logger  unilog_interfaces.Logger
 	control *grpc_control.ControlServiceImpl
+	server  *http.Server
+	mu      sync.Mutex
 }
 
 // -----------------------------------------------------------------------------
@@ -174,17 +196,48 @@ func (h *RESTHandler) Handler() http.Handler {
 	})
 }
 
-// StartServer starts a simple HTTP server for the REST API
-func (h *RESTHandler) StartServer(port int) error {
-	addr := fmt.Sprintf(":%d", port)
+// -----------------------------------------------------------------------------
+
+// StartServer starts an HTTP server for the REST API on the specified address (e.g. "127.0.0.1:1029" or ":1029").
+func (h *RESTHandler) StartServer(addr string) error {
+	if !strings.Contains(addr, ":") {
+		addr = ":" + addr
+	}
 	h.logger.Info("Starting REST management server on %s", addr)
 
-	server := &http.Server{
+	h.mu.Lock()
+	h.server = &http.Server{
 		Addr:         addr,
 		Handler:      h.Handler(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
+	server := h.server
+	h.mu.Unlock()
 
-	return server.ListenAndServe()
+	err := server.ListenAndServe()
+	if err == http.ErrServerClosed {
+		return nil
+	}
+	return err
+}
+
+// -----------------------------------------------------------------------------
+
+// StartServerPort is a convenience helper that accepts an integer port.
+func (h *RESTHandler) StartServerPort(port int) error {
+	return h.StartServer(fmt.Sprintf(":%d", port))
+}
+
+// -----------------------------------------------------------------------------
+
+// Stop gracefully shuts down the HTTP server.
+func (h *RESTHandler) Stop(ctx context.Context) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.server != nil {
+		h.logger.Info("Stopping REST management server...")
+		return h.server.Shutdown(ctx)
+	}
+	return nil
 }
