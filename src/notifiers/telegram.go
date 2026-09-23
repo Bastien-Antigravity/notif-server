@@ -47,8 +47,6 @@ type TelegramSender struct {
 // Configuration is optional: if token or chatId are omitted or empty, the provider
 // is considered unconfigured and returns (nil, nil) without failing.
 func NewTelegramSender(telegramConf map[string]string, confName string, logger log_interfaces.Logger, decrypt func(string) (string, error)) (*TelegramSender, error) {
-	logger = EnsureSafeLogger(logger)
-
 	tag := getOption(telegramConf, "TAG", "tag")
 	if tag == "" {
 		tag = confName
@@ -65,7 +63,7 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 		missing = append(missing, "'CHATID'")
 	}
 	if len(missing) > 0 {
-		logger.Info("[%s] Telegram provider configuration incomplete: missing required parameter(s) %s", tag, strings.Join(missing, ", "))
+		logger.Warning("[%s] Telegram provider configuration incomplete: missing required parameter(s) %s", tag, strings.Join(missing, ", "))
 		logger.Debug("[%s] Telegram provider not configured: missing %s; skipping", tag, strings.Join(missing, ", "))
 		return nil, nil
 	}
@@ -79,10 +77,6 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 		return nil, nil
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
-
-	if decrypt == nil {
-		decrypt = func(s string) (string, error) { return s, nil }
-	}
 
 	logLevel := getOption(telegramConf, "LOGLEVEL", "loglevel")
 	if logLevel == "" {

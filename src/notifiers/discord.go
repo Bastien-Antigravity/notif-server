@@ -44,8 +44,6 @@ type DiscordSender struct {
 // Configuration is optional: if URL is omitted or empty, the provider is considered
 // unconfigured and returns (nil, nil) without failing.
 func NewDiscordSender(discordConf map[string]string, confName string, logger log_interfaces.Logger, decrypt func(string) (string, error)) (*DiscordSender, error) {
-	logger = EnsureSafeLogger(logger)
-
 	tag := getOption(discordConf, "TAG", "tag")
 	if tag == "" {
 		tag = confName
@@ -53,7 +51,7 @@ func NewDiscordSender(discordConf map[string]string, confName string, logger log
 
 	discordUrl := getOption(discordConf, "URL", "url")
 	if discordUrl == "" {
-		logger.Info("[%s] Discord provider configuration incomplete: missing required parameter 'URL'", tag)
+		logger.Warning("[%s] Discord provider configuration incomplete: missing required parameter 'URL'", tag)
 		return nil, nil
 	}
 

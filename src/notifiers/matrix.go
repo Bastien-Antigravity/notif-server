@@ -51,7 +51,7 @@ func NewMatrixSender(matrixConf map[string]string, confName string, logger log_i
 
 	matrixUrl := getOption(matrixConf, "URL", "url")
 	if matrixUrl == "" {
-		logger.Info("[%s] Matrix provider configuration incomplete: missing required parameter 'URL'", tag)
+		logger.Warning("[%s] Matrix provider configuration incomplete: missing required parameter 'URL'", tag)
 		return nil, nil
 	}
 
@@ -100,7 +100,7 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 	client := &http.Client{}
 
 	for i := 0; i < maxRetries; i++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", matrixSender.matrixUrl, bytes.NewBuffer(jsonByteMessage))
+		req, err := http.NewRequestWithContext(ctx, "POST", plainURL, bytes.NewBuffer(jsonByteMessage))
 		if err != nil {
 			matrixSender.logger.Error("[%s] Failed to create HTTP request (matrix): %v", matrixSender.tag, err)
 			return fmt.Errorf("failed to create request (matrix): %w", err)

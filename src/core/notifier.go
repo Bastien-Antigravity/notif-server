@@ -71,7 +71,9 @@ func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logg
 		shutdown:       make(chan struct{}),
 	}
 
-	curNotifier.EnsureSafeLogger()
+	if curNotifier.Logger != nil {
+		curNotifier.Logger.AddMetadata("component", "notifier")
+	}
 
 	// 1. Initial Load
 	if liveConf := appConfig.Config.LiveConfig.Load(); liveConf != nil {
@@ -354,14 +356,7 @@ func (notifier *Notifier) RegisterSender(sender interfaces.INotifSender) {
 	}
 }
 
-// -----------------------------------------------------------------------------
 
-// EnsureSafeLogger ensures the logger is initialized with proper metadata.
-func (notifier *Notifier) EnsureSafeLogger() {
-	if notifier.Logger != nil {
-		notifier.Logger.AddMetadata("component", "notifier")
-	}
-}
 
 // -----------------------------------------------------------------------------
 

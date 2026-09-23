@@ -1,5 +1,19 @@
 package grpc_control
 
+/*
+ESSENTIAL PROCESS:
+Provides gRPC management control service for dynamic notification provider configuration.
+
+DATA FLOW:
+1. Receives gRPC requests for listing, querying, updating, or testing notification senders.
+2. Interacts with NotifController to apply runtime changes.
+3. Returns status responses and provider summaries to clients.
+
+KEY PARAMETERS:
+- controller: NotifController instance managing active providers.
+- logger: Unified ecosystem logger.
+*/
+
 import (
 	"context"
 	"fmt"

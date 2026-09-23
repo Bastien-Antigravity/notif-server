@@ -34,6 +34,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
@@ -53,52 +54,68 @@ type GmailSender struct {
 
 // -----------------------------------------------------------------------------
 
-func NewGmailSender(gmailConf map[string]string, confName string) (*GmailSender, string) {
-	curError := ""
-	gmailSender := &GmailSender{
-		smtp: "smtp.gmail.com",
-		port: 587,
+func NewGmailSender(gmailConf map[string]string, confName string, logger log_interfaces.Logger, decrypt func(string) (string, error)) (*GmailSender, error) {
+	tag := getOption(gmailConf, "TAG", "tag", "NOTIF_GMAIL_TAG")
+	if tag == "" {
+		tag = confName
 	}
 
-	gmailSender.tag = getOption(gmailConf, "TAG", "tag", "NOTIF_GMAIL_TAG")
-	if gmailSender.tag == "" {
-		gmailSender.tag = confName
+	from := getOption(gmailConf, "FROM", "from", "NOTIF_GMAIL_FROM", "GMAIL_FROM")
+	to := getOption(gmailConf, "TO", "to", "NOTIF_GMAIL_TO", "GMAIL_TO")
+	passwd := getOption(gmailConf, "PASSWD", "passwd", "PASSWORD", "password", "NOTIF_GMAIL_PASSWD", "GMAIL_PASSWD")
+
+	var missing []string
+	if from == "" {
+		missing = append(missing, "'FROM'")
+	}
+	if to == "" {
+		missing = append(missing, "'TO'")
+	}
+	if passwd == "" {
+		missing = append(missing, "'PASSWD'")
+	}
+	if len(missing) > 0 {
+		logger.Warning("[%s] Gmail provider configuration incomplete: missing required parameter(s) %s", tag, strings.Join(missing, ", "))
+		return nil, nil
 	}
 
-	gmailSender.from = getOption(gmailConf, "FROM", "from", "NOTIF_GMAIL_FROM", "GMAIL_FROM")
-	if gmailSender.from == "" {
-		curError += fmt.Sprintf("missing 'FROM' option for config '%s'\n", confName)
+	if !strings.Contains(from, "@") {
+		logger.Warning("[%s] Gmail provider configuration invalid: 'FROM' must be a valid email address", tag)
+		return nil, nil
 	}
 
-	gmailSender.to = getOption(gmailConf, "TO", "to", "NOTIF_GMAIL_TO", "GMAIL_TO")
-	if gmailSender.to == "" {
-		curError += fmt.Sprintf("missing 'TO' option for config '%s'\n", confName)
+	logLevel := getOption(gmailConf, "LOGLEVEL", "loglevel")
+	if logLevel == "" {
+		logLevel = "CRITICAL"
 	}
 
-	gmailSender.passwd = getOption(gmailConf, "PASSWD", "passwd", "PASSWORD", "password", "NOTIF_GMAIL_PASSWD", "GMAIL_PASSWD")
-	if gmailSender.passwd == "" {
-		curError += fmt.Sprintf("missing 'PASSWD' option for config '%s'\n", confName)
-	}
-
-	gmailSender.logLevel = getOption(gmailConf, "LOGLEVEL", "loglevel")
-	if gmailSender.logLevel == "" {
-		gmailSender.logLevel = "CRITICAL"
-	}
-
-	// Optional host & port overrides (e.g. for internal SMTP relays or testing)
+	smtpHost := "smtp.gmail.com"
 	if host := getOption(gmailConf, "SMTP_HOST", "smtp_host", "HOST", "host", "NOTIF_GMAIL_SMTP_HOST"); host != "" {
-		gmailSender.smtp = host
+		smtpHost = host
 	}
+	smtpPort := 587
 	if portStr := getOption(gmailConf, "SMTP_PORT", "smtp_port", "PORT", "port", "NOTIF_GMAIL_SMTP_PORT"); portStr != "" {
-		if p, err := strconv.Atoi(portStr); err == nil && p > 0 {
-			gmailSender.port = p
+		p, err := strconv.Atoi(portStr)
+		if err != nil || p <= 0 || p > 65535 {
+			logger.Warning("[%s] Gmail provider configuration invalid: 'SMTP_PORT' must be between 1 and 65535", tag)
+			return nil, nil
 		}
+		smtpPort = p
 	}
 
-	if curError == "" {
-		return gmailSender, ""
-	}
-	return nil, curError
+	logger.Info("[%s] Gmail notification provider initialized", tag)
+
+	return &GmailSender{
+		tag:      tag,
+		from:     from,
+		to:       to,
+		smtp:     smtpHost,
+		port:     smtpPort,
+		passwd:   passwd,
+		logLevel: logLevel,
+		logger:   logger,
+		decrypt:  decrypt,
+	}, nil
 }
 
 // -----------------------------------------------------------------------------

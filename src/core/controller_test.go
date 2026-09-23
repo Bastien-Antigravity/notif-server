@@ -30,7 +30,7 @@ import (
 func TestControllerAddProviderDetectsChange(t *testing.T) {
 	ac, err := toolbox_config.LoadConfig("standalone", nil)
 	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "ControllerTest")
+	n := NewNotifier(ac, &testNotifierLogger{}, "ControllerTest")
 	defer n.Stop()
 
 	c := NewController(n)
@@ -73,7 +73,7 @@ func TestControllerAddProviderDetectsChange(t *testing.T) {
 func TestControllerRemoveProvider(t *testing.T) {
 	ac, err := toolbox_config.LoadConfig("standalone", nil)
 	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "ControllerTest")
+	n := NewNotifier(ac, &testNotifierLogger{}, "ControllerTest")
 	defer n.Stop()
 
 	c := NewController(n)
@@ -99,7 +99,7 @@ func TestControllerRemoveProvider(t *testing.T) {
 func TestControllerDeepCopyImmutability(t *testing.T) {
 	ac, err := toolbox_config.LoadConfig("standalone", nil)
 	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "ControllerTest")
+	n := NewNotifier(ac, &testNotifierLogger{}, "ControllerTest")
 	defer n.Stop()
 
 	c := NewController(n)
@@ -127,7 +127,7 @@ func TestControllerDeepCopyImmutability(t *testing.T) {
 func TestControllerProviderTemplates(t *testing.T) {
 	ac, err := toolbox_config.LoadConfig("standalone", nil)
 	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "ControllerTest")
+	n := NewNotifier(ac, &testNotifierLogger{}, "ControllerTest")
 	defer n.Stop()
 
 	c := NewController(n)

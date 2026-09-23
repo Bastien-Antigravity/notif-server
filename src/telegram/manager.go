@@ -27,12 +27,16 @@ import (
 	unilog_ifaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
+// -----------------------------------------------------------------------------
+
 // MenuManager orchestrates the rebuild operations of the Telegram interactive menus.
 type MenuManager struct {
 	tc         *toolbox_teleclient.TeleClient
 	controller notif_core.NotifController
 	logger     unilog_ifaces.Logger
 }
+
+// -----------------------------------------------------------------------------
 
 // NewMenuManager creates a new MenuManager.
 func NewMenuManager(tc *toolbox_teleclient.TeleClient, controller notif_core.NotifController, logger unilog_ifaces.Logger) *MenuManager {
@@ -42,6 +46,8 @@ func NewMenuManager(tc *toolbox_teleclient.TeleClient, controller notif_core.Not
 		logger:     logger,
 	}
 }
+
+// -----------------------------------------------------------------------------
 
 // RebuildMenu dynamically pulls the configuration map and registers it with the TeleClient.
 func (m *MenuManager) RebuildMenu() {

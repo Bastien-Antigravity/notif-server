@@ -69,11 +69,15 @@ func (m *mockTestLogger) SetLocalNotifQueue(notifChan chan *unilog_interfaces.No
 
 // -----------------------------------------------------------------------------
 
+var testDecrypt = func(s string) (string, error) { return s, nil }
+
+// -----------------------------------------------------------------------------
+
 func TestTelegramOptionalConfig(t *testing.T) {
 	logger := &mockTestLogger{}
 
 	// 1. Empty config should gracefully return nil without error
-	sender, err := NewTelegramSender(map[string]string{}, "telegram_test", logger, nil)
+	sender, err := NewTelegramSender(map[string]string{}, "telegram_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 	assert.NotEmpty(t, logger.debugLogs)
@@ -81,7 +85,7 @@ func TestTelegramOptionalConfig(t *testing.T) {
 	// 2. Partial config (missing chatId) should gracefully return nil without error
 	sender, err = NewTelegramSender(map[string]string{
 		"TOKEN": "123456:ABC-DEF",
-	}, "telegram_test", logger, nil)
+	}, "telegram_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 
@@ -89,7 +93,7 @@ func TestTelegramOptionalConfig(t *testing.T) {
 	sender, err = NewTelegramSender(map[string]string{
 		"TOKEN":  "",
 		"CHATID": "",
-	}, "telegram_test", logger, nil)
+	}, "telegram_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 
@@ -97,7 +101,7 @@ func TestTelegramOptionalConfig(t *testing.T) {
 	sender, err = NewTelegramSender(map[string]string{
 		"TOKEN":  "123456:VALID_TOKEN",
 		"CHATID": "-100123456789",
-	}, "telegram_alerts", logger, nil)
+	}, "telegram_alerts", logger, testDecrypt)
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 	assert.Equal(t, "telegram_alerts", sender.GetTag())
@@ -110,14 +114,14 @@ func TestDiscordOptionalConfig(t *testing.T) {
 	logger := &mockTestLogger{}
 
 	// 1. Empty config should return nil without error
-	sender, err := NewDiscordSender(map[string]string{}, "discord_test", logger, nil)
+	sender, err := NewDiscordSender(map[string]string{}, "discord_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 
 	// 2. Empty URL should return nil without error
 	sender, err = NewDiscordSender(map[string]string{
 		"URL": "",
-	}, "discord_test", logger, nil)
+	}, "discord_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 
@@ -125,7 +129,7 @@ func TestDiscordOptionalConfig(t *testing.T) {
 	sender, err = NewDiscordSender(map[string]string{
 		"URL":      "https://discord.com/api/webhooks/123/abc",
 		"LOGLEVEL": "CRITICAL",
-	}, "discord_alerts", logger, nil)
+	}, "discord_alerts", logger, testDecrypt)
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 	assert.Equal(t, "discord_alerts", sender.GetTag())
@@ -138,14 +142,14 @@ func TestMatrixOptionalConfig(t *testing.T) {
 	logger := &mockTestLogger{}
 
 	// 1. Empty config should return nil without error
-	sender, err := NewMatrixSender(map[string]string{}, "matrix_test", logger, nil)
+	sender, err := NewMatrixSender(map[string]string{}, "matrix_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 
 	// 2. Valid config without explicit TAG uses confName
 	sender, err = NewMatrixSender(map[string]string{
 		"URL": "https://matrix.example.com/_matrix/hook/123",
-	}, "matrix_alerts", logger, nil)
+	}, "matrix_alerts", logger, testDecrypt)
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 	assert.Equal(t, "matrix_alerts", sender.GetTag())
@@ -158,7 +162,7 @@ func TestGmailOptionalConfig(t *testing.T) {
 	logger := &mockTestLogger{}
 
 	// 1. Empty config should return nil without error
-	sender, err := NewGmailSender(map[string]string{}, "gmail_test", logger, nil)
+	sender, err := NewGmailSender(map[string]string{}, "gmail_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 
@@ -166,7 +170,7 @@ func TestGmailOptionalConfig(t *testing.T) {
 	sender, err = NewGmailSender(map[string]string{
 		"FROM": "test@gmail.com",
 		"TO":   "dest@gmail.com",
-	}, "gmail_test", logger, nil)
+	}, "gmail_test", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sender)
 
@@ -177,7 +181,7 @@ func TestGmailOptionalConfig(t *testing.T) {
 		"PASSWD":    "secretpass",
 		"SMTP_HOST": "mail.example.com",
 		"SMTP_PORT": "465",
-	}, "gmail_alerts", logger, nil)
+	}, "gmail_alerts", logger, testDecrypt)
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 	assert.Equal(t, "gmail_alerts", sender.GetTag())
@@ -191,7 +195,7 @@ func TestGmailOptionalConfig(t *testing.T) {
 func TestExplicitParameterValidation(t *testing.T) {
 	// 1. Telegram missing TOKEN
 	logger := &mockTestLogger{}
-	s, err := NewTelegramSender(map[string]string{"CHATID": "12345"}, "tg", logger, nil)
+	s, err := NewTelegramSender(map[string]string{"CHATID": "12345"}, "tg", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, s)
 	require.NotEmpty(t, logger.warnLogs)
@@ -199,7 +203,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 
 	// 2. Telegram invalid URL
 	logger = &mockTestLogger{}
-	s, err = NewTelegramSender(map[string]string{"TOKEN": "abc", "CHATID": "123", "URL": "ftp://bad"}, "tg", logger, nil)
+	s, err = NewTelegramSender(map[string]string{"TOKEN": "abc", "CHATID": "123", "URL": "ftp://bad"}, "tg", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, s)
 	require.NotEmpty(t, logger.warnLogs)
@@ -207,7 +211,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 
 	// 3. Discord missing URL
 	logger = &mockTestLogger{}
-	sDisc, err := NewDiscordSender(map[string]string{}, "discord", logger, nil)
+	sDisc, err := NewDiscordSender(map[string]string{}, "discord", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sDisc)
 	require.NotEmpty(t, logger.warnLogs)
@@ -215,7 +219,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 
 	// 4. Discord invalid URL
 	logger = &mockTestLogger{}
-	sDisc, err = NewDiscordSender(map[string]string{"URL": "invalid-url"}, "discord", logger, nil)
+	sDisc, err = NewDiscordSender(map[string]string{"URL": "invalid-url"}, "discord", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sDisc)
 	require.NotEmpty(t, logger.warnLogs)
@@ -223,7 +227,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 
 	// 5. Matrix missing URL
 	logger = &mockTestLogger{}
-	sMat, err := NewMatrixSender(map[string]string{}, "matrix", logger, nil)
+	sMat, err := NewMatrixSender(map[string]string{}, "matrix", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sMat)
 	require.NotEmpty(t, logger.warnLogs)
@@ -231,7 +235,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 
 	// 6. Matrix invalid URL
 	logger = &mockTestLogger{}
-	sMat, err = NewMatrixSender(map[string]string{"URL": "bad-matrix-url"}, "matrix", logger, nil)
+	sMat, err = NewMatrixSender(map[string]string{"URL": "bad-matrix-url"}, "matrix", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sMat)
 	require.NotEmpty(t, logger.warnLogs)
@@ -242,7 +246,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 	sGmail, err := NewGmailSender(map[string]string{
 		"FROM": "test@example.com",
 		"TO":   "dest@example.com",
-	}, "gmail", logger, nil)
+	}, "gmail", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sGmail)
 	require.NotEmpty(t, logger.warnLogs)
@@ -254,7 +258,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 		"FROM":   "not-an-email",
 		"TO":     "dest@example.com",
 		"PASSWD": "pass",
-	}, "gmail", logger, nil)
+	}, "gmail", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sGmail)
 	require.NotEmpty(t, logger.warnLogs)
@@ -267,7 +271,7 @@ func TestExplicitParameterValidation(t *testing.T) {
 		"TO":        "dest@example.com",
 		"PASSWD":    "pass",
 		"SMTP_PORT": "999999",
-	}, "gmail", logger, nil)
+	}, "gmail", logger, testDecrypt)
 	require.NoError(t, err)
 	assert.Nil(t, sGmail)
 	require.NotEmpty(t, logger.warnLogs)
@@ -289,7 +293,7 @@ func TestMatrixSendMessageMock(t *testing.T) {
 	logger := &mockTestLogger{}
 	sender, err := NewMatrixSender(map[string]string{
 		"URL": server.URL,
-	}, "matrix_mock", logger, nil)
+	}, "matrix_mock", logger, testDecrypt)
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 
@@ -316,7 +320,7 @@ func TestDiscordSendMessageMock(t *testing.T) {
 	logger := &mockTestLogger{}
 	sender, err := NewDiscordSender(map[string]string{
 		"URL": server.URL,
-	}, "discord_mock", logger, nil)
+	}, "discord_mock", logger, testDecrypt)
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 
@@ -346,7 +350,7 @@ func TestTelegramSendMessageMock(t *testing.T) {
 		"TOKEN":  "mock_token",
 		"CHATID": "12345",
 		"URL":    server.URL,
-	}, "telegram_mock", logger, nil)
+	}, "telegram_mock", logger, testDecrypt)
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 
