@@ -14,16 +14,35 @@ DATA FLOW:
 
 import (
 	"context"
+	"os"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	toolbox_bootstrap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/bootstrap"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// -----------------------------------------------------------------------------
+
+var (
+	testAppConfig *toolbox_config.AppConfig
+	testLogger    log_interfaces.Logger
+)
+
+func init() {
+	_ = os.Setenv("LOGGER_PROFILE", "minimal")
+	var err error
+	testAppConfig, testLogger, err = toolbox_bootstrap.BootstrapServiceSafe("notif-server-test")
+	if err != nil {
+		panic(err)
+	}
+}
 
 // -----------------------------------------------------------------------------
 
@@ -59,7 +78,7 @@ func TestNotifierMessageFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create Notifier instance
-	n := NewNotifier(ac, nil, "TestParent")
+	n := NewNotifier(ac, testLogger, "TestParent")
 
 	// Create and register mock sender
 	mock := &mockSender{tag: "testTag"}
@@ -89,7 +108,7 @@ func TestNotifierMessageFlow(t *testing.T) {
 func TestRawMessageConsumption(t *testing.T) {
 	ac, err := toolbox_config.LoadConfig("standalone", nil)
 	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "RawTest")
+	n := NewNotifier(ac, testLogger, "RawTest")
 
 	mock := &mockSender{}
 	mock.tag = "rawTag"
@@ -120,7 +139,7 @@ func TestRawMessageConsumption(t *testing.T) {
 func TestImplicitRouting(t *testing.T) {
 	ac, err := toolbox_config.LoadConfig("standalone", nil)
 	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "ImplicitTest")
+	n := NewNotifier(ac, testLogger, "ImplicitTest")
 
 	// Setup implicit routing: CRITICAL -> implicitTag
 	mock := &mockSender{tag: "implicitTag"}
@@ -151,7 +170,7 @@ func TestImplicitRouting(t *testing.T) {
 func TestWorkerPoolCapacity(t *testing.T) {
 	ac, err := toolbox_config.LoadConfig("standalone", nil)
 	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "CapacityTest")
+	n := NewNotifier(ac, testLogger, "CapacityTest")
 
 	// Create a sender that blocks to test queue fill
 	blockingSender := &blockingMockSender{delay: 1 * time.Second}

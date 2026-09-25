@@ -18,11 +18,8 @@ import (
 	"testing"
 	"time"
 
-	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/Bastien-Antigravity/universal-logger/src/utils"
-
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // -----------------------------------------------------------------------------
@@ -43,9 +40,7 @@ func (m *counterMockSender) GetLogLevel() string { return "INFO" }
 // -----------------------------------------------------------------------------
 
 func TestWorkerPoolDispatch(t *testing.T) {
-	ac, err := toolbox_config.LoadConfig("standalone", nil)
-	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "PoolTest")
+	n := NewNotifier(testAppConfig, testLogger, "PoolTest")
 
 	sender := &counterMockSender{}
 	n.RegisterSender(sender)
@@ -65,9 +60,7 @@ func TestWorkerPoolDispatch(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestWorkerPoolIsolation(t *testing.T) {
-	ac, err := toolbox_config.LoadConfig("standalone", nil)
-	require.NoError(t, err)
-	n := NewNotifier(ac, nil, "IsolationTest")
+	n := NewNotifier(testAppConfig, testLogger, "IsolationTest")
 
 	fastSender := &counterMockSender{}
 	slowSender := &blockingMockSender{delay: 500 * time.Millisecond}

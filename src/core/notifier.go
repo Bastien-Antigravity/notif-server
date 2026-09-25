@@ -80,18 +80,88 @@ func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logg
 		curNotifier.Reload(*liveConf)
 	}
 
-	// 2. Register for Live Updates
+	// 2. Initialize default providers from static capabilities (e.g. standalone execution)
+	curNotifier.InitDefaultProviders()
+
+	// 3. Register for Live Updates
 	appConfig.Config.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
 		if curNotifier.Logger != nil {
 			curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
 		}
 		curNotifier.Reload(newConf)
+		curNotifier.InitDefaultProviders()
 	})
 
 	go curNotifier.processMessage()
 	go curNotifier.ConsumeRawMessages()
 
 	return curNotifier
+}
+
+// -----------------------------------------------------------------------------
+
+// InitDefaultProviders initializes baseline providers (like telegram) from static capabilities
+// if no dynamic providers have been registered for them.
+func (notifier *Notifier) InitDefaultProviders() {
+	notifier.mu.Lock()
+	defer notifier.mu.Unlock()
+
+	if _, exists := notifier.TagToSenderMap["telegram"]; exists {
+		return
+	}
+
+	var token, chatID, url string
+
+	if notifier.appConfig != nil {
+		var notifCap struct {
+			Token  string `json:"token"`
+			ChatID string `json:"chat_id"`
+			URL    string `json:"url"`
+		}
+		if err := notifier.appConfig.GetCapability("notif_server", &notifCap); err == nil {
+			token = notifCap.Token
+			chatID = notifCap.ChatID
+			url = notifCap.URL
+		}
+
+		// Fallback to tele_remote capability if not found in notif_server
+		if token == "" || chatID == "" {
+			var teleCap struct {
+				Token  string `json:"token"`
+				ChatID string `json:"chat_id"`
+				URL    string `json:"url"`
+			}
+			if err := notifier.appConfig.GetCapability("tele_remote", &teleCap); err == nil {
+				if token == "" {
+					token = teleCap.Token
+				}
+				if chatID == "" {
+					chatID = teleCap.ChatID
+				}
+				if url == "" {
+					url = teleCap.URL
+				}
+			}
+		}
+	}
+
+	if token != "" && chatID != "" {
+		if url == "" {
+			url = "https://api.telegram.org"
+		}
+		conf := map[string]string{
+			"TYPE":     "TELEGRAM",
+			"TAG":      "telegram",
+			"TOKEN":    token,
+			"CHATID":   chatID,
+			"URL":      url,
+			"LOGLEVEL": "CRITICAL,ERROR,WARNING,INFO",
+		}
+		notifier.startSender("TELEGRAM", "telegram", conf)
+		if notifier.Logger != nil {
+			notifier.Logger.Info("Default Telegram notification provider mounted from static capabilities")
+		}
+	}
 }
 
 // -----------------------------------------------------------------------------
