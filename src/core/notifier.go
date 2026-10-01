@@ -56,6 +56,13 @@ type Notifier struct {
 
 // NewNotifier creates a new instance of the notification service.
 func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logger, parentName string) *Notifier {
+	if appConfig == nil {
+		panic("NewNotifier: appConfig must not be nil")
+	}
+	if logger == nil {
+		panic("NewNotifier: logger must not be nil")
+	}
+
 	curNotifier := &Notifier{
 		Name:           parentName,
 		appConfig:      appConfig,
@@ -71,9 +78,7 @@ func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logg
 		shutdown:       make(chan struct{}),
 	}
 
-	if curNotifier.Logger != nil {
-		curNotifier.Logger.AddMetadata("component", "notifier")
-	}
+	curNotifier.Logger.AddMetadata("component", "notifier")
 
 	// 1. Initial Load
 	if liveConf := appConfig.Config.LiveConfig.Load(); liveConf != nil {
@@ -85,9 +90,7 @@ func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logg
 
 	// 3. Register for Live Updates
 	appConfig.Config.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
-		if curNotifier.Logger != nil {
-			curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
-		}
+		curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
 		curNotifier.Reload(newConf)
 		curNotifier.InitDefaultProviders()
 	})
@@ -112,35 +115,33 @@ func (notifier *Notifier) InitDefaultProviders() {
 
 	var token, chatID, url string
 
-	if notifier.appConfig != nil {
-		var notifCap struct {
+	var notifCap struct {
+		Token  string `json:"token"`
+		ChatID string `json:"chat_id"`
+		URL    string `json:"url"`
+	}
+	if err := notifier.appConfig.GetCapability("notif_server", &notifCap); err == nil {
+		token = notifCap.Token
+		chatID = notifCap.ChatID
+		url = notifCap.URL
+	}
+
+	// Fallback to tele_remote capability if not found in notif_server
+	if token == "" || chatID == "" {
+		var teleCap struct {
 			Token  string `json:"token"`
 			ChatID string `json:"chat_id"`
 			URL    string `json:"url"`
 		}
-		if err := notifier.appConfig.GetCapability("notif_server", &notifCap); err == nil {
-			token = notifCap.Token
-			chatID = notifCap.ChatID
-			url = notifCap.URL
-		}
-
-		// Fallback to tele_remote capability if not found in notif_server
-		if token == "" || chatID == "" {
-			var teleCap struct {
-				Token  string `json:"token"`
-				ChatID string `json:"chat_id"`
-				URL    string `json:"url"`
+		if err := notifier.appConfig.GetCapability("tele_remote", &teleCap); err == nil {
+			if token == "" {
+				token = teleCap.Token
 			}
-			if err := notifier.appConfig.GetCapability("tele_remote", &teleCap); err == nil {
-				if token == "" {
-					token = teleCap.Token
-				}
-				if chatID == "" {
-					chatID = teleCap.ChatID
-				}
-				if url == "" {
-					url = teleCap.URL
-				}
+			if chatID == "" {
+				chatID = teleCap.ChatID
+			}
+			if url == "" {
+				url = teleCap.URL
 			}
 		}
 	}

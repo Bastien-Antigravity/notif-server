@@ -44,6 +44,10 @@ type MatrixSender struct {
 // Configuration is optional: if URL is omitted or empty, the provider is considered
 // unconfigured and returns (nil, nil) without failing.
 func NewMatrixSender(matrixConf map[string]string, confName string, logger log_interfaces.Logger, decrypt func(string) (string, error)) (*MatrixSender, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("NewMatrixSender: logger must not be nil")
+	}
+
 	tag := getOption(matrixConf, "TAG", "tag")
 	if tag == "" {
 		tag = confName
@@ -119,9 +123,7 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 
 			// Fatal errors (4xx but not 429) should not be retried
 			if httpsResp.StatusCode >= 400 && httpsResp.StatusCode < 500 && httpsResp.StatusCode != 429 {
-				if matrixSender.logger != nil {
-					matrixSender.logger.Error("[%s] Non-retryable HTTP error from Matrix: %d", matrixSender.tag, httpsResp.StatusCode)
-				}
+				matrixSender.logger.Error("[%s] Non-retryable HTTP error from Matrix: %d", matrixSender.tag, httpsResp.StatusCode)
 				return lastErr
 			}
 		} else {
@@ -131,9 +133,7 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 			lastErr = fmt.Errorf("failed to post http request (matrix): %v", err)
 		}
 
-		if matrixSender.logger != nil {
-			matrixSender.logger.Warning("[%s] Matrix delivery attempt %d failed: %v. Retrying in %v...", matrixSender.tag, i+1, lastErr, backoff)
-		}
+		matrixSender.logger.Warning("[%s] Matrix delivery attempt %d failed: %v. Retrying in %v...", matrixSender.tag, i+1, lastErr, backoff)
 
 		if i < maxRetries-1 {
 			select {
@@ -145,9 +145,7 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 		}
 	}
 
-	if matrixSender.logger != nil {
-		matrixSender.logger.Error("[%s] Matrix send failed after %d retries: %v", matrixSender.tag, maxRetries, lastErr)
-	}
+	matrixSender.logger.Error("[%s] Matrix send failed after %d retries: %v", matrixSender.tag, maxRetries, lastErr)
 	return fmt.Errorf("matrix send failed after %d retries: %w", maxRetries, lastErr)
 }
 
