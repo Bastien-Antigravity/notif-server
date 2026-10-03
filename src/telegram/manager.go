@@ -170,7 +170,7 @@ func (m *MenuManager) RebuildMenu() {
 			if err != nil {
 				return err
 			}
-			msg := fmt.Sprintf("Notif Server Status: Operational\nActive Notifiers: %s\nVersion: 0.1.1",
+			msg := fmt.Sprintf("Notif Server Status: Operational\nActive Notifiers: %s\nVersion: 0.0.1",
 				details["active_notifiers"])
 			return m.tc.SendTelemetry(msg)
 		},

@@ -73,7 +73,7 @@ notif-server/
 │   ├── notifiers/          # Vendor-specific sender logic (Telegram, Gmail, Matrix, Discord)
 │   ├── schemas/            # Protocols: Cap'n Proto (.capnp) & Protobuf (.proto)
 │   └── server/             # Network listeners (TCP & gRPC server orchestration)
-├── VERSION.txt             # Semantic version source (e.g., 1.2.0)
+├── VERSION.txt             # Semantic version source (e.g., 0.0.1)
 └── ARCHITECTURE.md         # Comprehensive architectural guidelines
 ```
 
@@ -86,4 +86,4 @@ The application is bootstrapped using YAML profiles managed by `distributed-conf
 *   **Profiles**: Configured profiles like `standalone` or `test` load respective YAML files:
     *   [`standalone.yaml`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/standalone.yaml) links to central ecosystem configuration (`native.yaml`).
     *   [`src/server/test.yaml`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/src/server/test.yaml) controls capability endpoints during verification.
-*   **Version Reference**: Version information is centralized in [`VERSION.txt`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/VERSION.txt) (currently `1.2.0`) to ensure consistency across automated build packaging pipelines.
+*   **Version Reference**: Version information is centralized in [`VERSION.txt`](file:///Users/imac/Desktop/Bastien-Antigravity/notif-server/VERSION.txt) (currently `0.0.1`) to ensure consistency across automated build packaging pipelines.

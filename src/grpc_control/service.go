@@ -125,7 +125,7 @@ func (s *ControlServiceImpl) GetStatus(ctx context.Context, req *GetStatusReques
 	return &GetStatusResponse{
 		Healthy:   true,
 		Status:    "Operational",
-		Version:   "0.1.1", // Standard platform versioning
+		Version:   "0.0.1", // Standard platform versioning
 		Timestamp: time.Now().Unix(),
 		Details:   details,
 	}, nil
