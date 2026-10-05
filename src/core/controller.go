@@ -87,21 +87,28 @@ func (c *Controller) SendTestNotification(level, title, message string) error {
 		finalMsg = fmt.Sprintf("[%s] %s", title, message)
 	}
 
+	// Populate target tags with all active notifiers to guarantee delivery of test messages
+	activeNotifs := c.notifier.GetActiveNotifiers()
+	tags := make([]string, 0, len(activeNotifs))
+	for _, an := range activeNotifs {
+		tags = append(tags, an.Name)
+	}
+
 	msg := &unilog_utils.NotifMessage{
 		Level:   lvl.String(),
 		Message: finalMsg,
+		Tags:    tags,
 	}
 
-	// Queue to engine channel
-	select {
-	case c.notifier.NotifChan <- msg:
-	default:
-		if c.notifier.Logger != nil {
-			c.notifier.Logger.Error("NotifChan buffer full! Dropped test notification message: %s", finalMsg)
-		}
+	// Queue to engine channel via Notify
+	if err := c.notifier.Notify(msg); err != nil {
+		c.notifier.Logger.Error("NotifChan buffer full! Dropped test notification message: %s", finalMsg)
+		return err
 	}
 	return nil
 }
+
+
 
 // -----------------------------------------------------------------------------
 

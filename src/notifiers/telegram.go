@@ -32,13 +32,15 @@ import (
 )
 
 type TelegramSender struct {
-	tag      string
-	baseURL  string
-	token    string
-	chatId   string
-	logLevel string
-	logger   log_interfaces.Logger
-	decrypt  func(string) (string, error)
+	tag         string
+	baseURL     string
+	token       string
+	chatId      string
+	logLevel    string
+	logger      log_interfaces.Logger
+	decrypt     func(string) (string, error)
+	plainToken  string
+	plainChatId string
 }
 
 // -----------------------------------------------------------------------------
@@ -101,22 +103,26 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	ts.logger.Debug("[%s] Sending notification to Telegram...", ts.tag)
 
-	// Decrypt credentials on-demand only when executing delivery
-	plainToken, err := ts.decrypt(ts.token)
-	if err != nil {
-		ts.logger.Error("[%s] Failed to decrypt Telegram bot token", ts.tag)
-		return fmt.Errorf("failed to decrypt telegram bot token: %w", err)
-	}
-	plainChatId, err := ts.decrypt(ts.chatId)
-	if err != nil {
-		ts.logger.Error("[%s] Failed to decrypt Telegram chat ID", ts.tag)
-		return fmt.Errorf("failed to decrypt telegram chat id: %w", err)
+	// Decrypt credentials on-demand and cache in variables for subsequent dispatches
+	if ts.plainToken == "" || ts.plainChatId == "" {
+		plainToken, err := ts.decrypt(ts.token)
+		if err != nil {
+			ts.logger.Error("[%s] Failed to decrypt Telegram bot token", ts.tag)
+			return fmt.Errorf("failed to decrypt telegram bot token: %w", err)
+		}
+		plainChatId, err := ts.decrypt(ts.chatId)
+		if err != nil {
+			ts.logger.Error("[%s] Failed to decrypt Telegram chat ID", ts.tag)
+			return fmt.Errorf("failed to decrypt telegram chat id: %w", err)
+		}
+		ts.plainToken = plainToken
+		ts.plainChatId = plainChatId
 	}
 
-	apiURL := fmt.Sprintf("%s/bot%s/sendMessage", ts.baseURL, plainToken)
+	apiURL := fmt.Sprintf("%s/bot%s/sendMessage", ts.baseURL, ts.plainToken)
 
 	payload := map[string]string{
-		"chat_id": plainChatId,
+		"chat_id": ts.plainChatId,
 		"text":    msg,
 	}
 	jsonByteMessage, err := json.Marshal(payload)

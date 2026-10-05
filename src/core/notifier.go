@@ -2,19 +2,19 @@ package notifier
 
 /*
 ESSENTIAL PROCESS:
-Manages the core notification dispatch logic, worker pools, and asynchronous queuing.
+Manages the core notification dispatch logic, worker queues, and asynchronous delivery.
 Ensures that slow external APIs do not block the ingestion layer.
 
 DATA FLOW:
-1. Ingestion layer (TCP/gRPC) pushes messages to NotifChan.
-2. Router identifies target platforms based on message tags.
-3. Message is pushed to platform-specific buffered worker queues.
-4. Workers pick up messages and execute delivery with a 30s timeout.
+1. Ingestion layers (TCP/gRPC/universal-logger/controller) push messages to NotifChan.
+2. Router resolves target platforms using explicit tags and implicit log-level mapping.
+3. Messages are dispatched into platform-specific buffered worker queues.
+4. Dedicated workers deliver messages to external sinks with a 30s timeout.
 
 KEY PARAMETERS:
-- NotifChan: Primary ingestion channel for structured messages.
-- RawNotifChan: Ingestion channel for raw serialized binary data.
+- NotifChan: Primary ingestion channel for structured notification messages.
 - senderQueues: Map of platform tags to their respective worker queues.
+- levelToTags: Mapping of log levels (e.g. CRITICAL, ERROR) to target provider tags.
 */
 
 import (
@@ -41,10 +41,7 @@ type Notifier struct {
 	Logger         log_interfaces.Logger
 	TagToSenderMap map[string]interfaces.INotifSender
 	NotifChan      chan *utils.NotifMessage
-	RawNotifChan   chan []byte
 	senderQueues   map[string]chan *utils.NotifMessage
-	senderShutdown map[string]chan struct{} // Per-platform shutdown signal
-	configSenders  map[string]bool          // Senders dynamically provisioned from YAML configuration
 	currentConf    map[string]map[string]string
 	levelToTags    map[string][]string // Implicit routing map: Level -> [Tag1, Tag2]
 	mu             sync.RWMutex
@@ -56,23 +53,13 @@ type Notifier struct {
 
 // NewNotifier creates a new instance of the notification service.
 func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logger, parentName string) *Notifier {
-	if appConfig == nil {
-		panic("NewNotifier: appConfig must not be nil")
-	}
-	if logger == nil {
-		panic("NewNotifier: logger must not be nil")
-	}
-
 	curNotifier := &Notifier{
 		Name:           parentName,
 		appConfig:      appConfig,
 		Logger:         logger,
 		NotifChan:      make(chan *utils.NotifMessage, 100),
-		RawNotifChan:   make(chan []byte, 100),
 		TagToSenderMap: make(map[string]interfaces.INotifSender),
 		senderQueues:   make(map[string]chan *utils.NotifMessage),
-		senderShutdown: make(map[string]chan struct{}),
-		configSenders:  make(map[string]bool),
 		currentConf:    make(map[string]map[string]string),
 		levelToTags:    make(map[string][]string),
 		shutdown:       make(chan struct{}),
@@ -80,7 +67,7 @@ func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logg
 
 	curNotifier.Logger.AddMetadata("component", "notifier")
 
-	// 1. Initial Load
+	// 1. Initial Load from LiveConfig if present
 	if liveConf := appConfig.Config.LiveConfig.Load(); liveConf != nil {
 		curNotifier.Reload(*liveConf)
 	}
@@ -96,7 +83,6 @@ func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logg
 	})
 
 	go curNotifier.processMessage()
-	go curNotifier.ConsumeRawMessages()
 
 	return curNotifier
 }
@@ -158,11 +144,26 @@ func (notifier *Notifier) InitDefaultProviders() {
 			"URL":      url,
 			"LOGLEVEL": "CRITICAL,ERROR,WARNING,INFO",
 		}
-		notifier.startSender("TELEGRAM", "telegram", conf)
-		if notifier.Logger != nil {
-			notifier.Logger.Info("Default Telegram notification provider mounted from static capabilities")
+		notifier.startSenderLocked("TELEGRAM", "telegram", conf)
+
+		// Register default implicit routing levels for telegram
+		for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING", "INFO"} {
+			notifier.addLevelTagLocked(lvl, "telegram")
+		}
+
+		notifier.Logger.Info("Default Telegram notification provider mounted from static capabilities (routing: CRITICAL,ERROR,WARNING,INFO)")
+	}
+}
+
+// -----------------------------------------------------------------------------
+
+func (notifier *Notifier) addLevelTagLocked(level, tag string) {
+	for _, existing := range notifier.levelToTags[level] {
+		if existing == tag {
+			return
 		}
 	}
+	notifier.levelToTags[level] = append(notifier.levelToTags[level], tag)
 }
 
 // -----------------------------------------------------------------------------
@@ -183,7 +184,7 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 	activeTags := make(map[string]bool)
 	newLevelToTags := make(map[string][]string)
 
-	// 2. Identify and Start/Update Notifiers from Config
+	// 1. Identify and Start/Update Notifiers from Config
 	for sectionName, sectionConf := range newConf {
 		platType, ok := sectionConf["TYPE"]
 		if !ok {
@@ -209,16 +210,12 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 		// Update or Start
 		if !existed || !reflect.DeepEqual(sectionConf, oldConf) {
 			if existed {
-				if notifier.Logger != nil {
-					notifier.Logger.Info("Updating configuration for notifier: %s", sectionName)
-				}
-				notifier.stopSender(sectionName)
+				notifier.Logger.Info("Updating configuration for notifier: %s", sectionName)
+				notifier.stopSenderLocked(sectionName)
 			} else {
-				if notifier.Logger != nil {
-					notifier.Logger.Info("Initializing new notifier: %s (Type: %s)", sectionName, platType)
-				}
+				notifier.Logger.Info("Initializing new notifier: %s (Type: %s)", sectionName, platType)
 			}
-			notifier.startSender(platType, sectionName, sectionConf)
+			notifier.startSenderLocked(platType, sectionName, sectionConf)
 		}
 
 		// Update Level Routing Map
@@ -232,25 +229,32 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 		}
 	}
 
-	// 3. Stop Notifiers that were managed by config but removed from newConf
-	for existingTag := range notifier.configSenders {
+	// 2. Stop Notifiers that were in currentConf but removed from newConf
+	for existingTag := range notifier.currentConf {
 		if !activeTags[existingTag] {
-			if notifier.Logger != nil {
-				notifier.Logger.Info("Removing notifier: %s", existingTag)
+			notifier.Logger.Info("Removing notifier: %s", existingTag)
+			notifier.stopSenderLocked(existingTag)
+		}
+	}
+
+	// 3. Preserve default telegram provider levels if it's active and not overridden in newConf
+	if _, hasTelegram := activeTags["telegram"]; !hasTelegram {
+		if _, isDefaultMounted := notifier.TagToSenderMap["telegram"]; isDefaultMounted {
+			for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING", "INFO"} {
+				newLevelToTags[lvl] = append(newLevelToTags[lvl], "telegram")
 			}
-			notifier.stopSender(existingTag)
 		}
 	}
 
 	notifier.currentConf = newConf
 	notifier.levelToTags = newLevelToTags
-	if notifier.Logger != nil {
-		notifier.Logger.Info("Notifier routing map updated: %v", notifier.levelToTags)
-	}
+	notifier.Logger.Info("Notifier routing map updated: %v", notifier.levelToTags)
 	if notifier.OnUpdate != nil {
 		go notifier.OnUpdate()
 	}
 }
+
+// -----------------------------------------------------------------------------
 
 // NotifierStatus contains basic info about an active provider
 type NotifierStatus struct {
@@ -258,6 +262,8 @@ type NotifierStatus struct {
 	Type    string
 	Healthy bool
 }
+
+// -----------------------------------------------------------------------------
 
 // GetActiveNotifiers returns information about all currently active notification senders.
 func (notifier *Notifier) GetActiveNotifiers() []NotifierStatus {
@@ -269,23 +275,35 @@ func (notifier *Notifier) GetActiveNotifiers() []NotifierStatus {
 		result = append(result, NotifierStatus{
 			Name:    tag,
 			Type:    reflect.TypeOf(sender).String(),
-			Healthy: true, // TODO: Implement health check on senders if necessary
+			Healthy: true,
 		})
 	}
 	return result
 }
 
-func (notifier *Notifier) stopSender(tag string) {
-	if signal, ok := notifier.senderShutdown[tag]; ok {
-		close(signal)
-		delete(notifier.senderShutdown, tag)
+// -----------------------------------------------------------------------------
+
+func (notifier *Notifier) stopSenderLocked(tag string) {
+	if queue, ok := notifier.senderQueues[tag]; ok {
+		close(queue)
+		delete(notifier.senderQueues, tag)
 	}
 	delete(notifier.TagToSenderMap, tag)
-	delete(notifier.senderQueues, tag)
-	delete(notifier.configSenders, tag)
+
+	for lvl, tags := range notifier.levelToTags {
+		var filtered []string
+		for _, t := range tags {
+			if t != tag {
+				filtered = append(filtered, t)
+			}
+		}
+		notifier.levelToTags[lvl] = filtered
+	}
 }
 
-func (notifier *Notifier) startSender(platform, tag string, conf map[string]string) {
+// -----------------------------------------------------------------------------
+
+func (notifier *Notifier) startSenderLocked(platform, tag string, conf map[string]string) {
 	var sender interfaces.INotifSender
 	var err error
 
@@ -315,19 +333,12 @@ func (notifier *Notifier) startSender(platform, tag string, conf map[string]stri
 	}
 
 	notifier.TagToSenderMap[tag] = sender
-	notifier.configSenders[tag] = true
 
-	// Create buffered queue and shutdown signal
-	queue := make(chan *utils.NotifMessage, 1000)
+	// Single worker per sender ensures sequential message ordering and avoids rate-limit violations
+	queue := make(chan *utils.NotifMessage, 100)
 	notifier.senderQueues[tag] = queue
 
-	shutdown := make(chan struct{})
-	notifier.senderShutdown[tag] = shutdown
-
-	// Start worker pool (5 workers)
-	for i := 0; i < 5; i++ {
-		go notifier.startSenderWorker(tag, sender, queue, shutdown)
-	}
+	go notifier.startSenderWorker(tag, sender, queue)
 }
 
 // -----------------------------------------------------------------------------
@@ -347,17 +358,14 @@ func (notifier *Notifier) Notify(msg *utils.NotifMessage) error {
 
 // -----------------------------------------------------------------------------
 
-// SendRaw sends a raw byte message (serialized).
+// SendRaw deserializes a binary Cap'n Proto notification frame and queues it.
 func (notifier *Notifier) SendRaw(data []byte) error {
-	notifier.mu.RLock()
-	defer notifier.mu.RUnlock()
-
-	select {
-	case notifier.RawNotifChan <- data:
-		return nil
-	default:
-		return context.DeadlineExceeded // Buffer full
+	msg, err := DeserializeNotifMsg(data)
+	if err != nil {
+		notifier.Logger.Error("SendRaw: error deserializing message: %v", err)
+		return err
 	}
+	return notifier.Notify(msg)
 }
 
 // -----------------------------------------------------------------------------
@@ -386,11 +394,10 @@ func (notifier *Notifier) SendNotification(ctx context.Context, req *proto_msg.N
 
 // -----------------------------------------------------------------------------
 
-// LoadNotifSender is now a wrapper around Reload for backward compatibility
-// but essentially Reload is the new standard.
+// LoadNotifSender is a wrapper around Reload for backward compatibility.
 func (notifier *Notifier) LoadNotifSender(notifiersConf map[string]map[string]string) map[string][]string {
 	notifier.Reload(notifiersConf)
-	return nil // Note: Implicit routing return will be handled in Phase 2
+	return nil
 }
 
 // -----------------------------------------------------------------------------
@@ -401,14 +408,14 @@ func (notifier *Notifier) Stop() {
 	defer notifier.mu.Unlock()
 
 	close(notifier.shutdown)
-	for tag := range notifier.senderShutdown {
-		notifier.stopSender(tag)
+	for tag := range notifier.senderQueues {
+		notifier.stopSenderLocked(tag)
 	}
 }
 
 // -----------------------------------------------------------------------------
 
-// RegisterSender registers a custom or programmatic notification sender with its dedicated worker pool.
+// RegisterSender registers a custom or programmatic notification sender with its dedicated worker.
 func (notifier *Notifier) RegisterSender(sender interfaces.INotifSender) {
 	notifier.mu.Lock()
 	defer notifier.mu.Unlock()
@@ -416,62 +423,37 @@ func (notifier *Notifier) RegisterSender(sender interfaces.INotifSender) {
 	tag := sender.GetTag()
 	notifier.TagToSenderMap[tag] = sender
 
-	queue := make(chan *utils.NotifMessage, 1000)
+	queue := make(chan *utils.NotifMessage, 100)
 	notifier.senderQueues[tag] = queue
 
-	shutdown := make(chan struct{})
-	notifier.senderShutdown[tag] = shutdown
-
-	for i := 0; i < 5; i++ {
-		go notifier.startSenderWorker(tag, sender, queue, shutdown)
-	}
-}
-
-
-
-// -----------------------------------------------------------------------------
-
-func (notifier *Notifier) ConsumeRawMessages() {
-	for {
-		select {
-		case rawData := <-notifier.RawNotifChan:
-			if notifier.Logger != nil {
-				notifier.Logger.Debug("Received raw message, size: %d", len(rawData))
+	// Automatically map the sender's default log level to levelToTags
+	if lvl := sender.GetLogLevel(); lvl != "" {
+		for _, l := range strings.Split(lvl, ",") {
+			l = strings.TrimSpace(strings.ToUpper(l))
+			if l != "" {
+				notifier.addLevelTagLocked(l, tag)
 			}
-			msg, err := DeserializeNotifMsg(rawData)
-			if err != nil {
-				if notifier.Logger != nil {
-					notifier.Logger.Error("Error deserializing raw message: %v", err)
-				}
-				continue
-			}
-			if notifier.Logger != nil {
-				notifier.Logger.Debug("Deserialized message: %+v", msg)
-			}
-			notifier.NotifChan <- msg
-		case <-notifier.shutdown:
-			return
 		}
 	}
+
+	go notifier.startSenderWorker(tag, sender, queue)
 }
 
 // -----------------------------------------------------------------------------
 
-func (notifier *Notifier) startSenderWorker(tag string, sender interfaces.INotifSender, queue chan *utils.NotifMessage, shutdown chan struct{}) {
+func (notifier *Notifier) startSenderWorker(tag string, sender interfaces.INotifSender, queue chan *utils.NotifMessage) {
 	for {
 		select {
-		case msg := <-queue:
+		case msg, ok := <-queue:
+			if !ok {
+				return // Channel closed via stopSenderLocked, terminate worker cleanly
+			}
 			// Each dispatch has a 30s timeout to prevent hanging the worker
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			if err := sender.SendMessage(ctx, msg.Message, msg.Attachment, notifier.Name); err != nil {
-				if notifier.Logger != nil {
-					notifier.Logger.Error("[%s] Dispatch failed: %v", tag, err)
-				}
+				notifier.Logger.Error("[%s] Dispatch failed: %v", tag, err)
 			}
 			cancel()
-		case <-shutdown:
-			// Draining logic could be added here if needed
-			return
 		case <-notifier.shutdown:
 			return
 		}
@@ -486,50 +468,49 @@ func (notifier *Notifier) processMessage() {
 		case recvNotifMessage := <-notifier.NotifChan:
 			notifier.mu.RLock()
 
-			// 1. Implicit Routing: Apply Level mapping
 			targetTags := make(map[string]bool)
 
-			// Add explicit tags
+			// 1. Explicit tags
 			for _, tag := range recvNotifMessage.Tags {
 				targetTags[tag] = true
 			}
 
-			// Add implicit tags from Level
+			// 2. Implicit tags from Level
 			if recvNotifMessage.Level != "" {
 				levelKey := strings.ToUpper(recvNotifMessage.Level)
 				if tags, ok := notifier.levelToTags[levelKey]; ok {
-					if notifier.Logger != nil {
-						notifier.Logger.Debug("Level-based implicit routing: %s -> %v", levelKey, tags)
-					}
+					notifier.Logger.Debug("Level-based implicit routing: %s -> %v", levelKey, tags)
 					for _, tag := range tags {
 						targetTags[tag] = true
 					}
 				}
 			}
 
-			if notifier.Logger != nil {
-				notifier.Logger.Debug("Processing message with final tags: %v", targetTags)
+			// 3. Fallback: If no routing tags matched (e.g. untagged alert with unmapped level),
+			// broadcast to all active senders so critical notifications are never silently dropped
+			if len(targetTags) == 0 {
+				for tag := range notifier.TagToSenderMap {
+					targetTags[tag] = true
+				}
+				if len(targetTags) > 0 {
+					notifier.Logger.Warning("No routing tags matched for level '%s'; broadcasting to all active senders: %v", recvNotifMessage.Level, targetTags)
+				} else {
+					notifier.Logger.Warning("Notification dropped: no active senders configured to receive alert: %s", recvNotifMessage.Message)
+				}
 			}
 
-			// 2. Dispatch to worker queues
+			notifier.Logger.Debug("Processing message with final tags: %v", targetTags)
+
+			// 4. Dispatch to per-platform worker queues
 			for tag := range targetTags {
 				if queue, ok := notifier.senderQueues[tag]; ok {
-					if notifier.Logger != nil {
-						notifier.Logger.Debug("Pushing message to queue for tag: %s", tag)
-					}
-					// Non-blocking dispatch to worker queue
 					select {
 					case queue <- recvNotifMessage:
-						// Queued successfully
 					default:
-						if notifier.Logger != nil {
-							notifier.Logger.Warning("[%s] Worker queue full! Dropping notification to prevent OOM.", tag)
-						}
+						notifier.Logger.Warning("[%s] Worker queue full! Dropping notification to prevent OOM.", tag)
 					}
 				} else {
-					if notifier.Logger != nil {
-						notifier.Logger.Warning("No worker queue found for tag: %s", tag)
-					}
+					notifier.Logger.Warning("No worker queue found for tag: %s", tag)
 				}
 			}
 			notifier.mu.RUnlock()

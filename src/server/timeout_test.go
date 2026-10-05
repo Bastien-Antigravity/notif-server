@@ -43,11 +43,9 @@ func TestIdleTimeoutFix(t *testing.T) {
 	// Manual initialization to avoid starting processMessage goroutine which competes for NotifChan
 	nt := &notifier.Notifier{
 		Name:           "TimeoutTest",
-		NotifChan:      make(chan *utils.NotifMessage),
-		RawNotifChan:   make(chan []byte),
+		NotifChan:      make(chan *utils.NotifMessage, 10),
 		TagToSenderMap: make(map[string]notifier_interfaces.INotifSender),
 	}
-	go nt.ConsumeRawMessages()
 
 	srv := NewServer(ac, ul, nt, nil)
 

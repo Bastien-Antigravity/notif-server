@@ -19,6 +19,7 @@ KEY PARAMETERS:
 
 import (
 	"testing"
+	"time"
 
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -154,3 +155,30 @@ func TestControllerProviderTemplates(t *testing.T) {
 	err = c.AddProvider("matrix-prod", "MATRIX")
 	assert.Error(t, err, "Adding existing provider tag should return an error")
 }
+
+// -----------------------------------------------------------------------------
+
+func TestSendTestNotificationRoutesToActiveSenders(t *testing.T) {
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	n := NewNotifier(ac, &testNotifierLogger{}, "ControllerTest")
+	defer n.Stop()
+
+	// Register a mock sender
+	mock := &mockSender{tag: "telegram"}
+	n.RegisterSender(mock)
+
+	c := NewController(n)
+
+	// Send test notification with level ERROR, title test, message hello
+	err = c.SendTestNotification("ERROR", "test", "hello from test")
+	require.NoError(t, err)
+
+	// Wait for worker pool consumption
+	assert.Eventually(t, func() bool {
+		return mock.called
+	}, 2*time.Second, 20*time.Millisecond, "Mock sender should receive the test notification")
+
+	assert.Equal(t, "[test] hello from test", mock.lastMsg)
+}
+

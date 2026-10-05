@@ -36,6 +36,7 @@ type DiscordSender struct {
 	logLevel   string
 	logger     log_interfaces.Logger
 	decrypt    func(string) (string, error)
+	plainURL   string
 }
 
 // -----------------------------------------------------------------------------
@@ -81,11 +82,14 @@ func NewDiscordSender(discordConf map[string]string, confName string, logger log
 func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	discordSender.logger.Debug("[%s] Sending notification to Discord...", discordSender.tag)
 
-	// Decrypt webhook URL on-demand only when executing delivery
-	plainURL, err := discordSender.decrypt(discordSender.discordUrl)
-	if err != nil {
-		discordSender.logger.Error("[%s] Failed to decrypt Discord webhook URL", discordSender.tag)
-		return fmt.Errorf("failed to decrypt discord webhook url: %w", err)
+	// Decrypt webhook URL once and cache in variable for subsequent dispatches
+	if discordSender.plainURL == "" {
+		plainURL, err := discordSender.decrypt(discordSender.discordUrl)
+		if err != nil {
+			discordSender.logger.Error("[%s] Failed to decrypt Discord webhook URL", discordSender.tag)
+			return fmt.Errorf("failed to decrypt discord webhook url: %w", err)
+		}
+		discordSender.plainURL = plainURL
 	}
 
 	jsonByteMessage, err := json.Marshal(map[string]string{"content": msg})
@@ -100,7 +104,7 @@ func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUse
 	client := &http.Client{}
 
 	for i := 0; i < maxRetries; i++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", plainURL, bytes.NewBuffer(jsonByteMessage))
+		req, err := http.NewRequestWithContext(ctx, "POST", discordSender.plainURL, bytes.NewBuffer(jsonByteMessage))
 		if err != nil {
 			discordSender.logger.Error("[%s] Failed to create HTTP request (discord): %v", discordSender.tag, err)
 			return fmt.Errorf("failed to create request (discord): %w", err)

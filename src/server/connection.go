@@ -22,6 +22,7 @@ import (
 	"net"
 	"time"
 
+	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/safe-socket"
 	socket_interfaces "github.com/Bastien-Antigravity/safe-socket/src/interfaces"
 )
@@ -64,8 +65,16 @@ func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 			return
 		}
 
-		// Handle NotifMsg via Cap'n Proto (Raw forwarding)
-		// Send to Notifier raw channel
-		s.Notifier.RawNotifChan <- data
+		// Direct deserialization: no intermediate raw channel or redundant worker goroutine
+		msg, err := notifier.DeserializeNotifMsg(data)
+		if err != nil {
+			s.Logger.Error("Error deserializing message from %s: %v", clientName, err)
+			continue
+		}
+
+		if err := s.Notifier.Notify(msg); err != nil {
+			s.Logger.Warning("Failed to queue message from %s: %v", clientName, err)
+		}
 	}
 }
+

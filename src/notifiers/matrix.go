@@ -36,6 +36,7 @@ type MatrixSender struct {
 	logLevel  string
 	logger    log_interfaces.Logger
 	decrypt   func(string) (string, error)
+	plainURL  string
 }
 
 // -----------------------------------------------------------------------------
@@ -85,11 +86,14 @@ func NewMatrixSender(matrixConf map[string]string, confName string, logger log_i
 func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	matrixSender.logger.Debug("[%s] Sending notification to Matrix...", matrixSender.tag)
 
-	// Decrypt webhook URL on-demand only when executing delivery
-	plainURL, err := matrixSender.decrypt(matrixSender.matrixUrl)
-	if err != nil {
-		matrixSender.logger.Error("[%s] Failed to decrypt Matrix webhook URL", matrixSender.tag)
-		return fmt.Errorf("failed to decrypt matrix webhook url: %w", err)
+	// Decrypt webhook URL once and cache in variable for subsequent dispatches
+	if matrixSender.plainURL == "" {
+		plainURL, err := matrixSender.decrypt(matrixSender.matrixUrl)
+		if err != nil {
+			matrixSender.logger.Error("[%s] Failed to decrypt Matrix webhook URL", matrixSender.tag)
+			return fmt.Errorf("failed to decrypt matrix webhook url: %w", err)
+		}
+		matrixSender.plainURL = plainURL
 	}
 
 	jsonByteMessage, err := json.Marshal(map[string]string{"content": msg})
@@ -104,7 +108,7 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 	client := &http.Client{}
 
 	for i := 0; i < maxRetries; i++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", plainURL, bytes.NewBuffer(jsonByteMessage))
+		req, err := http.NewRequestWithContext(ctx, "POST", matrixSender.plainURL, bytes.NewBuffer(jsonByteMessage))
 		if err != nil {
 			matrixSender.logger.Error("[%s] Failed to create HTTP request (matrix): %v", matrixSender.tag, err)
 			return fmt.Errorf("failed to create request (matrix): %w", err)
