@@ -1,13 +1,23 @@
 VERSION := $(shell cat VERSION.txt 2>/dev/null || echo "0.0.1")
 
-.PHONY: all build test version clean
+.PHONY: all build build-lib core test version clean
 
 all: build
 
 version:
 	@echo $(VERSION)
 
-build:
+build-lib core:
+	@echo "Building CGO shared library libnotif (version $(VERSION))..."
+	@mkdir -p notif/libnotif
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		go build -buildmode=c-shared -o notif/libnotif/libnotif.dylib ./cmd/libnotif || true; \
+		install_name_tool -id @rpath/libnotif.dylib notif/libnotif/libnotif.dylib 2>/dev/null || true; \
+	else \
+		go build -buildmode=c-shared -o notif/libnotif/libnotif.so ./cmd/libnotif || true; \
+	fi
+
+build: build-lib
 	@echo "Building repository (version $(VERSION))..."
 	@if [ -f "go.mod" ]; then go build ./... || true; fi
 	@if [ -f "Cargo.toml" ]; then cargo build --release || true; fi
@@ -22,3 +32,4 @@ test:
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf dist build *.egg-info target/
+	@rm -f notif/libnotif/*.dylib notif/libnotif/*.so notif/libnotif/*.dll notif/libnotif/*.h

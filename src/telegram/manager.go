@@ -18,6 +18,8 @@ KEY PARAMETERS:
 
 import (
 	"fmt"
+	"net"
+	"strconv"
 
 	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
 
@@ -182,25 +184,24 @@ func (m *MenuManager) RebuildMenu() {
 
 // SetupTelegram initializes the Tele-Remote client, binds dynamic updates, and registers with Lifecycle Manager.
 func SetupTelegram(appConfig *toolbox_config.AppConfig, controller notif_core.NotifController, logger unilog_ifaces.Logger, onUpdateRegistry func(func()), lm *toolbox_lifecycle.Manager) {
-	var teleCap struct {
-		IP   string `json:"ip"`
-		Port string `json:"port"`
-	}
-	if err := appConfig.GetCapability("tele_remote", &teleCap); err != nil {
-		logger.Warning("Tele-Remote capability not found or configured: %v", err)
+	addr, err := appConfig.GetListenAddr("tele_remote")
+	if err != nil {
+		logger.Warning("Tele-Remote capability address could not be resolved: %v", err)
 		return
 	}
-	port := 1863
-	if teleCap.Port != "" {
-		fmt.Sscanf(teleCap.Port, "%d", &port)
+
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		logger.Warning("Invalid tele_remote address format resolved: %s (%v)", addr, err)
+		return
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		logger.Warning("Invalid tele_remote port resolved: %s (%v)", portStr, err)
+		return
 	}
 
-	ip := "127.0.0.1"
-	if teleCap.IP != "" {
-		ip = teleCap.IP
-	}
-
-	teleClient := toolbox_teleclient.NewTeleClient("Notif Server", ip, port, logger)
+	teleClient := toolbox_teleclient.NewTeleClient("Notif Server", host, port, logger)
 	mgr := NewMenuManager(teleClient, controller, logger)
 
 	// Initial menu build

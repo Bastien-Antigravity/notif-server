@@ -1,0 +1,10 @@
+[package]
+name = "notif-rs"
+version = "0.0.1"
+edition = "2021"
+authors = ["Bastien-Antigravity"]
+description = "Rust client wrapper for the notif-server CGO bridge (libnotif)"
+
+[dependencies]
+libc = "0.2"
+libloading = "0.8"

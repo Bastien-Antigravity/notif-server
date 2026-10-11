@@ -19,6 +19,7 @@ KEY PARAMETERS:
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -40,6 +41,8 @@ type Notifier struct {
 	appConfig      *toolbox_config.AppConfig
 	Logger         log_interfaces.Logger
 	TagToSenderMap map[string]interfaces.INotifSender
+	DefaultSender  interfaces.INotifSender
+	DefaultTag     string
 	NotifChan      chan *utils.NotifMessage
 	senderQueues   map[string]chan *utils.NotifMessage
 	currentConf    map[string]map[string]string
@@ -104,38 +107,27 @@ func (notifier *Notifier) InitDefaultProviders() {
 	var notifCap struct {
 		Token  string `json:"token"`
 		ChatID string `json:"chat_id"`
+		ChatId string `json:"chatid"`
 		URL    string `json:"url"`
 	}
 	if err := notifier.appConfig.GetCapability("notif_server", &notifCap); err == nil {
 		token = notifCap.Token
-		chatID = notifCap.ChatID
+		if notifCap.ChatID != "" {
+			chatID = notifCap.ChatID
+		} else {
+			chatID = notifCap.ChatId
+		}
 		url = notifCap.URL
 	}
 
-	// Fallback to tele_remote capability if not found in notif_server
 	if token == "" || chatID == "" {
-		var teleCap struct {
-			Token  string `json:"token"`
-			ChatID string `json:"chat_id"`
-			URL    string `json:"url"`
-		}
-		if err := notifier.appConfig.GetCapability("tele_remote", &teleCap); err == nil {
-			if token == "" {
-				token = teleCap.Token
-			}
-			if chatID == "" {
-				chatID = teleCap.ChatID
-			}
-			if url == "" {
-				url = teleCap.URL
-			}
-		}
+		notifier.Logger.Error("Missing required Telegram credentials (token/chat_id) in capabilities.notif_server")
+		return
 	}
 
-	if token != "" && chatID != "" {
-		if url == "" {
-			url = "https://api.telegram.org"
-		}
+	if url == "" {
+		url = "https://api.telegram.org"
+	}
 		conf := map[string]string{
 			"TYPE":     "TELEGRAM",
 			"TAG":      "telegram",
@@ -146,13 +138,18 @@ func (notifier *Notifier) InitDefaultProviders() {
 		}
 		notifier.startSenderLocked("TELEGRAM", "telegram", conf)
 
+		// Designate Telegram as the authoritative main default provider and universal fallback
+		if tele, ok := notifier.TagToSenderMap["telegram"]; ok {
+			notifier.DefaultSender = tele
+			notifier.DefaultTag = "telegram"
+		}
+
 		// Register default implicit routing levels for telegram
-		for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING", "INFO"} {
+		for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING"} {
 			notifier.addLevelTagLocked(lvl, "telegram")
 		}
 
-		notifier.Logger.Info("Default Telegram notification provider mounted from static capabilities (routing: CRITICAL,ERROR,WARNING,INFO)")
-	}
+		notifier.Logger.Info("Default main Telegram notification provider mounted from static capabilities (routing: CRITICAL,ERROR,WARNING)")
 }
 
 // -----------------------------------------------------------------------------
@@ -237,10 +234,14 @@ func (notifier *Notifier) Reload(newConf map[string]map[string]string) {
 		}
 	}
 
-	// 3. Preserve default telegram provider levels if it's active and not overridden in newConf
+	// 3. Preserve default telegram provider if it's active and not overridden in newConf
 	if _, hasTelegram := activeTags["telegram"]; !hasTelegram {
-		if _, isDefaultMounted := notifier.TagToSenderMap["telegram"]; isDefaultMounted {
-			for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING", "INFO"} {
+		if tele, isDefaultMounted := notifier.TagToSenderMap["telegram"]; isDefaultMounted {
+			if notifier.DefaultSender == nil {
+				notifier.DefaultSender = tele
+				notifier.DefaultTag = "telegram"
+			}
+			for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING"} {
 				newLevelToTags[lvl] = append(newLevelToTags[lvl], "telegram")
 			}
 		}
@@ -290,6 +291,11 @@ func (notifier *Notifier) stopSenderLocked(tag string) {
 	}
 	delete(notifier.TagToSenderMap, tag)
 
+	if notifier.DefaultTag == tag {
+		notifier.DefaultSender = nil
+		notifier.DefaultTag = ""
+	}
+
 	for lvl, tags := range notifier.levelToTags {
 		var filtered []string
 		for _, t := range tags {
@@ -334,11 +340,17 @@ func (notifier *Notifier) startSenderLocked(platform, tag string, conf map[strin
 
 	notifier.TagToSenderMap[tag] = sender
 
+	// Designate as default main provider if it is telegram or if no default provider is set yet
+	if tag == "telegram" || notifier.DefaultSender == nil {
+		notifier.DefaultSender = sender
+		notifier.DefaultTag = tag
+	}
+
 	// Single worker per sender ensures sequential message ordering and avoids rate-limit violations
 	queue := make(chan *utils.NotifMessage, 100)
 	notifier.senderQueues[tag] = queue
 
-	go notifier.startSenderWorker(tag, sender, queue)
+	go notifier.startSenderWorker(tag, queue)
 }
 
 // -----------------------------------------------------------------------------
@@ -423,6 +435,12 @@ func (notifier *Notifier) RegisterSender(sender interfaces.INotifSender) {
 	tag := sender.GetTag()
 	notifier.TagToSenderMap[tag] = sender
 
+	// Designate as default main provider if it is telegram or if no default provider is set yet
+	if tag == "telegram" || notifier.DefaultSender == nil {
+		notifier.DefaultSender = sender
+		notifier.DefaultTag = tag
+	}
+
 	queue := make(chan *utils.NotifMessage, 100)
 	notifier.senderQueues[tag] = queue
 
@@ -436,22 +454,40 @@ func (notifier *Notifier) RegisterSender(sender interfaces.INotifSender) {
 		}
 	}
 
-	go notifier.startSenderWorker(tag, sender, queue)
+	go notifier.startSenderWorker(tag, queue)
 }
 
 // -----------------------------------------------------------------------------
 
-func (notifier *Notifier) startSenderWorker(tag string, sender interfaces.INotifSender, queue chan *utils.NotifMessage) {
+func (notifier *Notifier) startSenderWorker(tag string, queue chan *utils.NotifMessage) {
 	for {
 		select {
 		case msg, ok := <-queue:
 			if !ok {
 				return // Channel closed via stopSenderLocked, terminate worker cleanly
 			}
+			notifier.mu.RLock()
+			sender := notifier.TagToSenderMap[tag]
+			defaultSender := notifier.DefaultSender
+			defaultTag := notifier.DefaultTag
+			notifier.mu.RUnlock()
+			if sender == nil {
+				continue
+			}
+
 			// Each dispatch has a 30s timeout to prevent hanging the worker
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			if err := sender.SendMessage(ctx, msg.Message, msg.Attachment, notifier.Name); err != nil {
 				notifier.Logger.Error("[%s] Dispatch failed: %v", tag, err)
+				// If an auxiliary provider fails, notify the default main provider as fallback
+				if defaultSender != nil && tag != defaultTag && msg.Level != "FALLBACK" {
+					fallbackText := fmt.Sprintf("⚠️ [Notification Fallback] Provider '%s' failed to deliver alert: %v\nOriginal message: %s", tag, err, msg.Message)
+					if fbErr := defaultSender.SendMessage(ctx, fallbackText, msg.Attachment, "fallback"); fbErr != nil {
+						notifier.Logger.Error("[%s] Fallback alert delivery to %s failed: %v", tag, defaultTag, fbErr)
+					} else {
+						notifier.Logger.Info("Dispatched fallback alert to %s for failed provider '%s'", defaultTag, tag)
+					}
+				}
 			}
 			cancel()
 		case <-notifier.shutdown:
@@ -466,36 +502,61 @@ func (notifier *Notifier) processMessage() {
 	for {
 		select {
 		case recvNotifMessage := <-notifier.NotifChan:
+			if recvNotifMessage == nil {
+				continue
+			}
+
 			notifier.mu.RLock()
 
 			targetTags := make(map[string]bool)
 
-			// 1. Explicit tags
+			// 1. Explicit tags (only include tags that have active senders)
 			for _, tag := range recvNotifMessage.Tags {
-				targetTags[tag] = true
+				if _, ok := notifier.TagToSenderMap[tag]; ok {
+					targetTags[tag] = true
+				}
 			}
 
-			// 2. Implicit tags from Level
+			// 2. Implicit tags from Level (only include tags that have active senders)
 			if recvNotifMessage.Level != "" {
 				levelKey := strings.ToUpper(recvNotifMessage.Level)
 				if tags, ok := notifier.levelToTags[levelKey]; ok {
 					notifier.Logger.Debug("Level-based implicit routing: %s -> %v", levelKey, tags)
 					for _, tag := range tags {
-						targetTags[tag] = true
+						if _, ok := notifier.TagToSenderMap[tag]; ok {
+							targetTags[tag] = true
+						}
 					}
 				}
 			}
 
-			// 3. Fallback: If no routing tags matched (e.g. untagged alert with unmapped level),
-			// broadcast to all active senders so critical notifications are never silently dropped
+			// 3. Default routing (FEAT-001 Scenario 3):
+			// If no routing tags matched (e.g. untagged alert, unmapped level, or unmapped tags),
+			// route solely to the default main provider and visually mark the fallback directly in the message.
 			if len(targetTags) == 0 {
-				for tag := range notifier.TagToSenderMap {
-					targetTags[tag] = true
-				}
-				if len(targetTags) > 0 {
-					notifier.Logger.Warning("No routing tags matched for level '%s'; broadcasting to all active senders: %v", recvNotifMessage.Level, targetTags)
+				if notifier.DefaultTag != "" {
+					notifier.Logger.Info("No specific provider match for message (level: '%s', tags: %v); routing to default provider '%s'", recvNotifMessage.Level, recvNotifMessage.Tags, notifier.DefaultTag)
+					targetTags[notifier.DefaultTag] = true
+
+					// Prepend visual indicator in the message so it is clearly visible in the notification
+					reason := "Untagged Alert"
+					if len(recvNotifMessage.Tags) > 0 {
+						reason = fmt.Sprintf("Unmapped Tags: %v", recvNotifMessage.Tags)
+					} else if recvNotifMessage.Level != "" {
+						reason = fmt.Sprintf("Unmapped Level: %s", recvNotifMessage.Level)
+					}
+					if !strings.HasPrefix(recvNotifMessage.Message, "⚠️ [Default Fallback") {
+						recvNotifMessage.Message = fmt.Sprintf("⚠️ [Default Fallback - %s]\n%s", reason, recvNotifMessage.Message)
+					}
 				} else {
-					notifier.Logger.Warning("Notification dropped: no active senders configured to receive alert: %s", recvNotifMessage.Message)
+					notifier.Logger.Warning("Notification dropped: no active default sender configured to receive alert: %s", recvNotifMessage.Message)
+				}
+			}
+
+			// Loop prevention: Never route a provider's own dispatch failure log back to that provider
+			for tag := range targetTags {
+				if strings.HasPrefix(recvNotifMessage.Message, "["+tag+"]") {
+					delete(targetTags, tag)
 				}
 			}
 
@@ -519,3 +580,23 @@ func (notifier *Notifier) processMessage() {
 		}
 	}
 }
+
+// -----------------------------------------------------------------------------
+
+// GetDefaultSender returns the primary/default notification sender.
+func (notifier *Notifier) GetDefaultSender() interfaces.INotifSender {
+	notifier.mu.RLock()
+	defer notifier.mu.RUnlock()
+	return notifier.DefaultSender
+}
+
+// -----------------------------------------------------------------------------
+
+// GetDefaultTag returns the tag of the primary/default notification sender.
+func (notifier *Notifier) GetDefaultTag() string {
+	notifier.mu.RLock()
+	defer notifier.mu.RUnlock()
+	return notifier.DefaultTag
+}
+
+

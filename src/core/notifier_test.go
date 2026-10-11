@@ -14,6 +14,7 @@ DATA FLOW:
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -207,3 +208,128 @@ func (m *blockingMockSender) SendMessage(ctx context.Context, msg, to, subject s
 }
 func (m *blockingMockSender) GetTag() string      { return "blockTag" }
 func (m *blockingMockSender) GetLogLevel() string { return "INFO" }
+
+// -----------------------------------------------------------------------------
+
+type failingMockSender struct {
+	tag string
+	err error
+}
+
+func (m *failingMockSender) SendMessage(ctx context.Context, msg, to, subject string) error {
+	return m.err
+}
+func (m *failingMockSender) GetTag() string      { return m.tag }
+func (m *failingMockSender) GetLogLevel() string { return "INFO" }
+
+// -----------------------------------------------------------------------------
+
+func TestFallbackToTelegramOnSenderFailure(t *testing.T) {
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	n := NewNotifier(ac, testLogger, "FallbackTest")
+	defer n.Stop()
+
+	// 1. Register failing discord sender
+	discordMock := &failingMockSender{tag: "discord", err: fmt.Errorf("discord webhook unreachable")}
+	n.RegisterSender(discordMock)
+
+	// 2. Register succeeding telegram sender
+	telegramMock := &mockSender{tag: "telegram"}
+	n.RegisterSender(telegramMock)
+
+	// 3. Send message explicitly tagged to discord
+	msg := &utils.NotifMessage{
+		Message: "Important trading signal",
+		Tags:    []string{"discord"},
+	}
+	err = n.Notify(msg)
+	require.NoError(t, err)
+
+	// Wait for async dispatch and fallback
+	time.Sleep(200 * time.Millisecond)
+
+	// 4. Assert telegram sender received fallback alert
+	assert.True(t, telegramMock.called, "Telegram should have received the fallback notification")
+	assert.Contains(t, telegramMock.lastMsg, "[Notification Fallback]")
+	assert.Contains(t, telegramMock.lastMsg, "discord")
+	assert.Contains(t, telegramMock.lastMsg, "Important trading signal")
+}
+
+// -----------------------------------------------------------------------------
+
+func TestDefaultRoutingFallbackBanner(t *testing.T) {
+	ac, err := toolbox_config.LoadConfig("standalone", nil)
+	require.NoError(t, err)
+	n := NewNotifier(ac, testLogger, "DefaultBannerTest")
+
+	teleMock := &mockSender{tag: "telegram"}
+	n.RegisterSender(teleMock)
+
+	n.mu.Lock()
+	n.DefaultSender = teleMock
+	n.DefaultTag = "telegram"
+	n.mu.Unlock()
+
+	// 1. Untagged message with empty level
+	msg1 := &utils.NotifMessage{
+		Message: "Untagged alert message",
+		Tags:    []string{},
+		Level:   "",
+	}
+	err = n.Notify(msg1)
+	require.NoError(t, err)
+	time.Sleep(150 * time.Millisecond)
+
+	assert.True(t, teleMock.called)
+	assert.Contains(t, teleMock.lastMsg, "⚠️ [Default Fallback - Untagged Alert]")
+	assert.Contains(t, teleMock.lastMsg, "Untagged alert message")
+
+	// 2. Message with unmapped tag
+	teleMock.called = false
+	msg2 := &utils.NotifMessage{
+		Message: "Unmapped tag message",
+		Tags:    []string{"non_existent_provider"},
+		Level:   "",
+	}
+	err = n.Notify(msg2)
+	require.NoError(t, err)
+	time.Sleep(150 * time.Millisecond)
+
+	assert.True(t, teleMock.called)
+	assert.Contains(t, teleMock.lastMsg, "⚠️ [Default Fallback - Unmapped Tags: [non_existent_provider]]")
+	assert.Contains(t, teleMock.lastMsg, "Unmapped tag message")
+
+	// 3. Message with unmapped level
+	teleMock.called = false
+	msg3 := &utils.NotifMessage{
+		Message: "Unmapped level message",
+		Tags:    []string{},
+		Level:   "CUSTOM_UNKNOWN",
+	}
+	err = n.Notify(msg3)
+	require.NoError(t, err)
+	time.Sleep(150 * time.Millisecond)
+
+	assert.True(t, teleMock.called)
+	assert.Contains(t, teleMock.lastMsg, "⚠️ [Default Fallback - Unmapped Level: CUSTOM_UNKNOWN]")
+	assert.Contains(t, teleMock.lastMsg, "Unmapped level message")
+
+	// 4. Properly mapped message (no fallback banner)
+	teleMock.called = false
+	msg4 := &utils.NotifMessage{
+		Message: "Clean mapped alert",
+		Tags:    []string{"telegram"},
+		Level:   "CRITICAL",
+	}
+	err = n.Notify(msg4)
+	require.NoError(t, err)
+	time.Sleep(150 * time.Millisecond)
+
+	assert.True(t, teleMock.called)
+	assert.NotContains(t, teleMock.lastMsg, "[Default Fallback")
+	assert.Equal(t, "Clean mapped alert", teleMock.lastMsg)
+}
+
+
+

@@ -17,7 +17,9 @@ DATA FLOW:
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -29,7 +31,9 @@ import (
 	"github.com/Bastien-Antigravity/notif-server/src/telegram"
 
 	toolbox_bootstrap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/bootstrap"
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
+	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
 // -----------------------------------------------------------------------------
@@ -42,6 +46,9 @@ func main() {
 	defer uniLog.Close()
 
 	uniLog.Info("Starting Notif Server...")
+
+	// Pre-flight check: ensure Telegram token is working before starting the process (fail-fast)
+	verifyTelegramConfig(appConfig, uniLog)
 
 	// Create Notifier with injected logger and toolbox AppConfig
 	notifObject := notif_core.NewNotifier(appConfig, uniLog, "notif-server")
@@ -70,17 +77,9 @@ func main() {
 		}
 	}()
 
-	// Register notif-server OpenMFE with web-interface dynamically
+	// Register notif-server OpenMFE with web-interface dynamically (non-blocking, infinite retry)
 	go func() {
-		webAddr, err := appConfig.GetListenAddr("web_interface")
-		if err != nil {
-			uniLog.Warning("Could not resolve web_interface address for OpenMFE registration: %v", err)
-			webAddr = "127.0.0.1:5000"
-		}
-		regUrl := fmt.Sprintf("http://%s/api/v1/register", webAddr)
-
 		mfeUrl := fmt.Sprintf("http://%s/static/js/mfe-loader.js", restAddr)
-
 		payload := fmt.Sprintf(`{
 			"name": "notif-server",
 			"tag": "notif-server-mfe",
@@ -89,21 +88,34 @@ func main() {
 		}`, mfeUrl)
 
 		client := &http.Client{Timeout: 3 * time.Second}
-		for i := 0; i < 15; i++ {
-			resp, err := client.Post(regUrl, "application/json", strings.NewReader(payload))
-			if err == nil {
-				resp.Body.Close()
-				if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-					uniLog.Info("Successfully registered notif-server OpenMFE with web-interface at %s", regUrl)
-					return
+		backoff := 2 * time.Second
+		maxBackoff := 15 * time.Second
+
+		for {
+			webAddr, err := appConfig.GetListenAddr("web_interface")
+			if err == nil && webAddr != "" {
+				regUrl := fmt.Sprintf("http://%s/api/v1/register", webAddr)
+				resp, postErr := client.Post(regUrl, "application/json", strings.NewReader(payload))
+				if postErr == nil {
+					resp.Body.Close()
+					if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+						uniLog.Info("Successfully registered notif-server OpenMFE with web-interface at %s", regUrl)
+						return
+					}
+					uniLog.Warning("OpenMFE registration attempt failed with status %s; retrying in %v...", resp.Status, backoff)
+				} else {
+					uniLog.Warning("OpenMFE registration attempt failed (%v); retrying in %v...", postErr, backoff)
 				}
-				uniLog.Warning("OpenMFE registration attempt %d failed with status %s", i+1, resp.Status)
 			} else {
-				uniLog.Warning("OpenMFE registration attempt %d failed: %v", i+1, err)
+				uniLog.Warning("web_interface capability address unresolvable (%v); retrying in %v...", err, backoff)
 			}
-			time.Sleep(3 * time.Second)
+
+			time.Sleep(backoff)
+			backoff = time.Duration(float64(backoff) * 1.5)
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
 		}
-		uniLog.Warning("Failed to register notif-server OpenMFE with web-interface after 15 attempts")
 	}()
 
 	go func() {
@@ -133,3 +145,95 @@ func main() {
 
 	lm.Wait(context.Background())
 }
+
+// -----------------------------------------------------------------------------
+
+// verifyTelegramConfig tests and verifies the configured Telegram bot token against the Telegram Bot API.
+// Fails fast if the token is missing, cannot be decrypted, or fails Telegram API verification.
+func verifyTelegramConfig(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logger) {
+	var token, url string
+	var notifCap struct {
+		Token string `json:"token"`
+		URL   string `json:"url"`
+	}
+	if err := appConfig.GetCapability("notif_server", &notifCap); err == nil {
+		token = notifCap.Token
+		url = notifCap.URL
+	}
+	if token == "" {
+		logger.Critical("❌ No Telegram bot token configured in capabilities.notif_server; failing fast")
+		os.Exit(1)
+	}
+	if url == "" {
+		url = "https://api.telegram.org"
+	}
+
+	plainToken, err := appConfig.DecryptSecret(token)
+	if err != nil {
+		logger.Critical("❌ Failed to decrypt Telegram bot token: %v; failing fast", err)
+		os.Exit(1)
+	}
+
+	logger.Info("🔍 Verifying Telegram Bot Token...")
+	ok, username, err := verifyTelegramToken(url, plainToken)
+	if err != nil {
+		logger.Warning("Telegram token verification connection error: %v", err)
+		return
+	}
+	if !ok {
+		logger.Critical("❌ Telegram API verification failed: %s; failing fast", username)
+		os.Exit(1)
+	}
+	logger.Info("✅ Telegram Bot Token verified successfully (%s)!", username)
+}
+
+// -----------------------------------------------------------------------------
+
+// verifyTelegramToken validates a Telegram bot token against the getMe endpoint.
+func verifyTelegramToken(baseURL, token string) (bool, string, error) {
+	trimmedToken := strings.TrimSpace(token)
+	if trimmedToken == "" {
+		return false, "", fmt.Errorf("telegram bot token cannot be empty")
+	}
+
+	apiURL := fmt.Sprintf("%s/bot%s/getMe", strings.TrimRight(baseURL, "/"), trimmedToken)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("User-Agent", "Bastien-Antigravity/NotifServer")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, "", fmt.Errorf("connection error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var res struct {
+		OK          bool   `json:"ok"`
+		Description string `json:"description"`
+		Result      struct {
+			Username string `json:"username"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &res); err != nil {
+		return false, "", fmt.Errorf("failed to parse response (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+
+	if res.OK {
+		return true, fmt.Sprintf("@%s", res.Result.Username), nil
+	}
+
+	return false, res.Description, nil
+}
+
+
