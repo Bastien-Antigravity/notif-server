@@ -77,6 +77,13 @@ temp/
 # Compiled Binaries & Logs
 notif-server
 *.log
+logs/
+**/logs/
+*.dylib
+*.dll
+*.so
+*.dSYM
+bin/
 
 # --- Standard Ecosystem Protections ---
 *.pyc
