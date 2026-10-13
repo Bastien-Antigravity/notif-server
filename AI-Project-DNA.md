@@ -3,15 +3,16 @@
 - Classification: Level 1 Microservice
 
 ---
-microservice: 08-Base-Scripts
+microservice: notif-server
 type: note
 status: active
 tags:
-- '#service/08-Base-Scripts'
+- '#service/notif-server'
 - '#type/note'
 - '#state/active'
 - '#zone/3-fleet'
----# 🧬 Project DNA: notif-server
+---
+# 🧬 Project DNA: notif-server
 
 ## 🎯 High-Level Intent (BDD)
 - **Goal**: Centralized notification gateway for the microservice fleet.
