@@ -20,8 +20,15 @@ import (
 	"fmt"
 	"strings"
 
+	toolbox_version "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version"
 	unilog_utils "github.com/Bastien-Antigravity/universal-logger/src/utils"
 )
+
+// -----------------------------------------------------------------------------
+
+// ServerVersion defines the release version reported in status telemetry.
+// Dynamically resolved from microservice-toolbox (BuildVersion link-time flag or VERSION.txt).
+var ServerVersion = toolbox_version.Get()
 
 // -----------------------------------------------------------------------------
 // Models & Interfaces

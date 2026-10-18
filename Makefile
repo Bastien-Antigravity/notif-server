@@ -1,4 +1,5 @@
 VERSION := $(shell cat VERSION.txt 2>/dev/null || echo "0.0.1")
+LDFLAGS := -s -w -X 'github.com/Bastien-Antigravity/notif-server/src/core.ServerVersion=$(VERSION)'
 
 .PHONY: all build build-lib core test version clean
 
@@ -11,15 +12,16 @@ build-lib core:
 	@echo "Building CGO shared library libnotif (version $(VERSION))..."
 	@mkdir -p notif/libnotif
 	@if [ "$$(uname -s)" = "Darwin" ]; then \
-		go build -buildmode=c-shared -o notif/libnotif/libnotif.dylib ./cmd/libnotif || true; \
+		go build -ldflags="$(LDFLAGS)" -buildmode=c-shared -o notif/libnotif/libnotif.dylib ./cmd/libnotif || true; \
 		install_name_tool -id @rpath/libnotif.dylib notif/libnotif/libnotif.dylib 2>/dev/null || true; \
 	else \
-		go build -buildmode=c-shared -o notif/libnotif/libnotif.so ./cmd/libnotif || true; \
+		go build -ldflags="$(LDFLAGS)" -buildmode=c-shared -o notif/libnotif/libnotif.so ./cmd/libnotif || true; \
 	fi
 
 build: build-lib
 	@echo "Building repository (version $(VERSION))..."
-	@if [ -f "go.mod" ]; then go build ./... || true; fi
+	@mkdir -p bin
+	@if [ -f "go.mod" ]; then go build -ldflags="$(LDFLAGS)" -o bin/notif-server ./cmd/notif-server && go build -ldflags="$(LDFLAGS)" ./...; fi
 	@if [ -f "Cargo.toml" ]; then cargo build --release || true; fi
 	@if [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then python3 -m build || true; fi
 
