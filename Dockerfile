@@ -21,7 +21,8 @@ COPY . .
 
 # Ensure dependencies are tidy and build binary
 RUN go mod tidy && \
-    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /notif-server-bin ./cmd/notif-server
+    VERSION=$(cat VERSION.txt 2>/dev/null || echo "0.0.1") && \
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w -X 'github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version.BuildVersion=${VERSION}' -X 'github.com/Bastien-Antigravity/notif-server/src/core.ServerVersion=${VERSION}'" -o /notif-server-bin ./cmd/notif-server
 
 # === RUNTIME STAGE ===
 FROM alpine:3.20
@@ -31,8 +32,9 @@ RUN apk add --no-cache ca-certificates tzdata
 
 WORKDIR /notif-server
 
-# Copy the binary from the build stage
+# Copy binary and VERSION.txt from build stage
 COPY --from=builder /notif-server-bin /notif-server/notif-server
+COPY --from=builder /workspace/notif-server/VERSION.txt /notif-server/VERSION.txt
 
 # Set the entrypoint
 ENTRYPOINT ["/notif-server/notif-server"]

@@ -51,6 +51,7 @@ docs/
 ARCHITECTURE.md
 *.pdf
 *.txt
+!VERSION.txt
 *.xlsx
 *.numbers
 *.csv

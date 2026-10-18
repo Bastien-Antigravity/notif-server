@@ -1,5 +1,5 @@
 VERSION := $(shell cat VERSION.txt 2>/dev/null || echo "0.0.1")
-LDFLAGS := -s -w -X 'github.com/Bastien-Antigravity/notif-server/src/core.ServerVersion=$(VERSION)'
+LDFLAGS := -s -w -X 'github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version.BuildVersion=$(VERSION)' -X 'github.com/Bastien-Antigravity/notif-server/src/core.ServerVersion=$(VERSION)'
 
 .PHONY: all build build-lib core test version clean
 
