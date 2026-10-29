@@ -84,7 +84,12 @@ func main() {
 			"name": "notif-server",
 			"tag": "notif-server-mfe",
 			"url": "%s",
-			"navTitle": "🔔 Notif Server"
+			"navTitle": "🔔 Notif Server",
+			"layer": "L1",
+			"category": "Base Fleet",
+			"priority": 30,
+			"icon": "fa-bell",
+			"requiresAuth": false
 		}`, mfeUrl)
 
 		client := &http.Client{Timeout: 3 * time.Second}
