@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	toolbox_bootstrap "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/bootstrap"
 	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	toolbox_lifecycle "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/lifecycle"
+	toolbox_spec "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/spec"
 	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
@@ -77,64 +79,40 @@ func main() {
 		}
 	}()
 
-	// Register notif-server OpenMFE with web-interface dynamically (non-blocking, infinite retry)
-	go func() {
-		mfeUrl := fmt.Sprintf("http://%s/static/js/mfe-loader.js", restAddr)
-		payload := fmt.Sprintf(`{
-			"name": "notif-server",
-			"tag": "notif-server-mfe",
-			"url": "%s",
-			"navTitle": "🔔 Notif Server",
-			"layer": "L1",
-			"category": "Base Fleet",
-			"priority": 30,
-			"icon": "fa-bell",
-			"requiresAuth": false
-		}`, mfeUrl)
+	// 6. Initialize Lifecycle Manager
+	lm := toolbox_lifecycle.NewManagerWithLogger(uniLog)
 
-		client := &http.Client{Timeout: 3 * time.Second}
-		backoff := 2 * time.Second
-		maxBackoff := 15 * time.Second
+	tcpAddr, _ := appConfig.GetListenAddr("notif_server")
+	grpcAddr, _ := appConfig.GetGRPCListenAddr("notif_server")
+	_, tcpPort, _ := net.SplitHostPort(tcpAddr)
+	_, grpcPort, _ := net.SplitHostPort(grpcAddr)
+	_, restPort, _ := net.SplitHostPort(restAddr)
 
-		for {
-			webAddr, err := appConfig.GetListenAddr("web_interface")
-			if err == nil && webAddr != "" {
-				regUrl := fmt.Sprintf("http://%s/api/v1/register", webAddr)
-				resp, postErr := client.Post(regUrl, "application/json", strings.NewReader(payload))
-				if postErr == nil {
-					resp.Body.Close()
-					if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-						uniLog.Info("Successfully registered notif-server OpenMFE with web-interface at %s", regUrl)
-						return
-					}
-					uniLog.Warning("OpenMFE registration attempt failed with status %s; retrying in %v...", resp.Status, backoff)
-				} else {
-					uniLog.Warning("OpenMFE registration attempt failed (%v); retrying in %v...", postErr, backoff)
-				}
-			} else {
-				uniLog.Warning("web_interface capability address unresolvable (%v); retrying in %v...", err, backoff)
-			}
+	_ = toolbox_spec.PublishWithLifecycle(appConfig, uniLog, lm, "notif_server", toolbox_spec.ServiceSpec{
+		Name:        "Notif Server",
+		Tag:         "notif-server-mfe",
+		URL:         fmt.Sprintf("http://%s/static/js/mfe-loader.js", restAddr),
+		NavTitle:    "Notif Server",
+		Layer:       "L1",
+		Category:    "Base Fleet",
+		Priority:    30,
+		Icon:        "fa-bell",
+		Description: "Multi-channel alerting daemon dispatching events across Telegram, Discord, and Webhooks via TCP, gRPC, and REST.",
+		Protocol:    "TCP, gRPC & REST",
+		Framing:     fmt.Sprintf("Port %s TCP / Port %s gRPC / Port %s REST", tcpPort, grpcPort, restPort),
+		DocLink:     "obsidian-brain/06-Microservices/Notif-Server-Hub.md",
+	})
 
-			time.Sleep(backoff)
-			backoff = time.Duration(float64(backoff) * 1.5)
-			if backoff > maxBackoff {
-				backoff = maxBackoff
-			}
-		}
-	}()
+	// 8. Bind Tele-Remote dynamic control menus
+	telegram.SetupTelegram(appConfig, controller, uniLog, func(cb func()) {
+		notifObject.OnUpdate = cb
+	}, lm)
 
 	go func() {
 		if err := srv.Start(); err != nil {
 			uniLog.Critical("Server failed: %v", err)
 		}
 	}()
-
-	// 6. Graceful Shutdown via Toolbox
-	lm := toolbox_lifecycle.NewManagerWithLogger(uniLog)
-
-	telegram.SetupTelegram(appConfig, controller, uniLog, func(cb func()) {
-		notifObject.OnUpdate = cb
-	}, lm)
 
 	lm.Register("NotificationServer", func() error {
 		uniLog.Info("Shutting down Notification Server...")
