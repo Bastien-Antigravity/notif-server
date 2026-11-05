@@ -11,12 +11,27 @@
 // - lib_path: Path to the compiled libnotif dynamic library.
 // =============================================================================
 
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_double, c_int};
+use std::sync::{Arc, Mutex};
 use libloading::{Library, Symbol};
 
+static LIB_CACHE: Mutex<Option<HashMap<String, Arc<Library>>>> = Mutex::new(None);
+
+fn get_or_load_lib(path: &str) -> Result<Arc<Library>, Box<dyn std::error::Error>> {
+    let mut cache = LIB_CACHE.lock().map_err(|e| e.to_string())?;
+    let map = cache.get_or_insert_with(HashMap::new);
+    if let Some(lib) = map.get(path) {
+        return Ok(Arc::clone(lib));
+    }
+    let lib = Arc::new(unsafe { Library::new(path)? });
+    map.insert(path.to_string(), Arc::clone(&lib));
+    Ok(lib)
+}
+
 pub struct NotificationClient {
-    lib: &'static Library,
+    lib: Arc<Library>,
     target_addr: String,
     timeout: f64,
 }
@@ -49,7 +64,7 @@ impl NotificationClient {
             found
         };
 
-        let lib = Box::leak(Box::new(unsafe { Library::new(path)? }));
+        let lib = get_or_load_lib(&path)?;
 
         Ok(Self {
             lib,

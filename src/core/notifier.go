@@ -506,20 +506,27 @@ func (notifier *Notifier) processMessage() {
 				continue
 			}
 
+			// Recursion prevention: Never process internal drop/failure logs as alerts [NS-1]
+			if strings.Contains(recvNotifMessage.Message, "Notification dropped:") || strings.Contains(recvNotifMessage.Message, "No worker queue found") {
+				continue
+			}
+
+			msgCopy := *recvNotifMessage
+
 			notifier.mu.RLock()
 
 			targetTags := make(map[string]bool)
 
 			// 1. Explicit tags (only include tags that have active senders)
-			for _, tag := range recvNotifMessage.Tags {
+			for _, tag := range msgCopy.Tags {
 				if _, ok := notifier.TagToSenderMap[tag]; ok {
 					targetTags[tag] = true
 				}
 			}
 
 			// 2. Implicit tags from Level (only include tags that have active senders)
-			if recvNotifMessage.Level != "" {
-				levelKey := strings.ToUpper(recvNotifMessage.Level)
+			if msgCopy.Level != "" {
+				levelKey := strings.ToUpper(msgCopy.Level)
 				if tags, ok := notifier.levelToTags[levelKey]; ok {
 					notifier.Logger.Debug("Level-based implicit routing: %s -> %v", levelKey, tags)
 					for _, tag := range tags {
@@ -535,27 +542,27 @@ func (notifier *Notifier) processMessage() {
 			// route solely to the default main provider and visually mark the fallback directly in the message.
 			if len(targetTags) == 0 {
 				if notifier.DefaultTag != "" {
-					notifier.Logger.Info("No specific provider match for message (level: '%s', tags: %v); routing to default provider '%s'", recvNotifMessage.Level, recvNotifMessage.Tags, notifier.DefaultTag)
+					notifier.Logger.Info("No specific provider match for message (level: '%s', tags: %v); routing to default provider '%s'", msgCopy.Level, msgCopy.Tags, notifier.DefaultTag)
 					targetTags[notifier.DefaultTag] = true
 
 					// Prepend visual indicator in the message so it is clearly visible in the notification
 					reason := "Untagged Alert"
-					if len(recvNotifMessage.Tags) > 0 {
-						reason = fmt.Sprintf("Unmapped Tags: %v", recvNotifMessage.Tags)
-					} else if recvNotifMessage.Level != "" {
-						reason = fmt.Sprintf("Unmapped Level: %s", recvNotifMessage.Level)
+					if len(msgCopy.Tags) > 0 {
+						reason = fmt.Sprintf("Unmapped Tags: %v", msgCopy.Tags)
+					} else if msgCopy.Level != "" {
+						reason = fmt.Sprintf("Unmapped Level: %s", msgCopy.Level)
 					}
-					if !strings.HasPrefix(recvNotifMessage.Message, "⚠️ [Default Fallback") {
-						recvNotifMessage.Message = fmt.Sprintf("⚠️ [Default Fallback - %s]\n%s", reason, recvNotifMessage.Message)
+					if !strings.HasPrefix(msgCopy.Message, "⚠️ [Default Fallback") {
+						msgCopy.Message = fmt.Sprintf("⚠️ [Default Fallback - %s]\n%s", reason, msgCopy.Message)
 					}
 				} else {
-					notifier.Logger.Warning("Notification dropped: no active default sender configured to receive alert: %s", recvNotifMessage.Message)
+					notifier.Logger.Warning("Notification dropped: no active default sender configured to receive alert: %s", msgCopy.Message)
 				}
 			}
 
 			// Loop prevention: Never route a provider's own dispatch failure log back to that provider
 			for tag := range targetTags {
-				if strings.HasPrefix(recvNotifMessage.Message, "["+tag+"]") {
+				if strings.HasPrefix(msgCopy.Message, "["+tag+"]") {
 					delete(targetTags, tag)
 				}
 			}
@@ -566,7 +573,7 @@ func (notifier *Notifier) processMessage() {
 			for tag := range targetTags {
 				if queue, ok := notifier.senderQueues[tag]; ok {
 					select {
-					case queue <- recvNotifMessage:
+					case queue <- &msgCopy:
 					default:
 						notifier.Logger.Warning("[%s] Worker queue full! Dropping notification to prevent OOM.", tag)
 					}

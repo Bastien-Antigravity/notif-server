@@ -56,8 +56,9 @@ func main() {
 	notifObject := notif_core.NewNotifier(appConfig, uniLog, "notif-server")
 	uniLog.Info("Notifier '%s' initialized", notifObject.Name)
 
-	// Bind Universal Logger notification queue so messages logged through universal-logger route into Notifier (ecosystem standard)
-	uniLog.SetLocalNotifQueue(notifObject.NotifChan)
+	// Note: We do NOT bind uniLog.SetLocalNotifQueue(notifObject.NotifChan) here to prevent
+	// an infinite feedback recursion loop where notif-server's internal drop/error logs
+	// are re-ingested as inbound alerts [NS-1].
 
 	// Create Controller Abstraction
 	controller := notif_core.NewController(notifObject)

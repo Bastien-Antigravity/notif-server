@@ -79,6 +79,14 @@ func NewGmailSender(gmailConf map[string]string, confName string, logger log_int
 		return nil, nil
 	}
 
+	if decrypt != nil && strings.HasPrefix(passwd, "ENC(") && strings.HasSuffix(passwd, ")") {
+		if decrypted, err := decrypt(passwd); err == nil {
+			passwd = decrypted
+		} else {
+			logger.Warning("[%s] Failed to decrypt password: %v", tag, err)
+		}
+	}
+
 	if !strings.Contains(from, "@") {
 		logger.Warning("[%s] Gmail provider configuration invalid: 'FROM' must be a valid email address", tag)
 		return nil, nil
@@ -199,7 +207,11 @@ func (gmailSender *GmailSender) dialAndSend(ctx context.Context, payload []byte)
 	// 1. Establish connection based on port
 	if gmailSender.port == 465 {
 		// Implicit TLS
-		conn, err = tls.DialWithDialer(&d, "tcp", addr, &tls.Config{ServerName: gmailSender.smtp})
+		tlsDialer := &tls.Dialer{
+			NetDialer: &d,
+			Config:    &tls.Config{ServerName: gmailSender.smtp},
+		}
+		conn, err = tlsDialer.DialContext(ctx, "tcp", addr)
 	} else {
 		// Plain connection (to be upgraded via STARTTLS)
 		conn, err = d.DialContext(ctx, "tcp", addr)
@@ -209,6 +221,10 @@ func (gmailSender *GmailSender) dialAndSend(ctx context.Context, payload []byte)
 		return fmt.Errorf("failed to dial smtp server: %w", err)
 	}
 	defer conn.Close()
+
+	if dl, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(dl)
+	}
 
 	// 2. Wrap in SMTP client
 	c, err := smtp.NewClient(conn, gmailSender.smtp)
@@ -227,14 +243,22 @@ func (gmailSender *GmailSender) dialAndSend(ctx context.Context, payload []byte)
 		}
 	}
 
+	// Decrypt password if still encrypted with ENC(...)
+	passwd := gmailSender.passwd
+	if gmailSender.decrypt != nil && strings.HasPrefix(passwd, "ENC(") && strings.HasSuffix(passwd, ")") {
+		if dec, err := gmailSender.decrypt(passwd); err == nil {
+			passwd = dec
+		}
+	}
+
 	// 4. Authenticate
 	// Note: For Gmail with 2-Factor Authentication, PASSWD must be an App Password (16 characters).
 	// On Port 465, c.tls is not set by StartTLS, so we use plainAuthWithoutTLSCheck.
 	var auth smtp.Auth
 	if gmailSender.port == 465 {
-		auth = &plainAuthWithoutTLSCheck{"", gmailSender.from, gmailSender.passwd, gmailSender.smtp}
+		auth = &plainAuthWithoutTLSCheck{"", gmailSender.from, passwd, gmailSender.smtp}
 	} else {
-		auth = smtp.PlainAuth("", gmailSender.from, gmailSender.passwd, gmailSender.smtp)
+		auth = smtp.PlainAuth("", gmailSender.from, passwd, gmailSender.smtp)
 	}
 
 	if err = c.Auth(auth); err != nil {
@@ -289,15 +313,25 @@ func (gmailSender *GmailSender) buildEmail(subject, attachment, body string) ([]
 
 	// Attachment
 	if attachment != "" {
-		attachmentBytes, err := os.ReadFile(attachment)
+		cleanPath := filepath.Clean(attachment)
+		// Restrict attachments to avoid path traversal and exfiltration of sensitive system files [NS-2]
+		if strings.Contains(attachment, "..") ||
+			strings.HasPrefix(cleanPath, "/etc") ||
+			strings.HasPrefix(cleanPath, "/root") ||
+			strings.Contains(cleanPath, ".ssh") ||
+			strings.Contains(cleanPath, "bastien/private") {
+			return nil, fmt.Errorf("attachment path %q is forbidden", attachment)
+		}
+
+		attachmentBytes, err := os.ReadFile(cleanPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read attachment: %w", err)
 		}
 
 		h := make(map[string][]string)
-		h["Content-Type"] = []string{fmt.Sprintf("application/octet-stream; name=\"%s\"", filepath.Base(attachment))}
+		h["Content-Type"] = []string{fmt.Sprintf("application/octet-stream; name=\"%s\"", filepath.Base(cleanPath))}
 		h["Content-Transfer-Encoding"] = []string{"base64"}
-		h["Content-Disposition"] = []string{fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(attachment))}
+		h["Content-Disposition"] = []string{fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(cleanPath))}
 
 		part, err := writer.CreatePart(h)
 		if err != nil {

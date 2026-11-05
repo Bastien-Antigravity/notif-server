@@ -25,42 +25,51 @@ import (
 )
 
 type NotifNcapHandler struct {
-	Name         string
-	notifMessage *notifMsg.NotifierMsg
-	memSeg       *capnplib.Segment
-	msgSerDeSer  *capnplib.Message
+	Name string
 }
 
 // -----------------------------------------------------------------------------
 
 func NewNotifHandler(name string) *NotifNcapHandler {
-	capnplibMsg, memSeg, err := capnplib.NewMessage(capnplib.SingleSegment(nil))
-	if err != nil {
-		panic(fmt.Sprintf("Error while trying to initialize Notif Handler :'%v'\n", err))
-	}
-
-	notifObj, err := notifMsg.NewRootNotifierMsg(memSeg)
-	if err != nil {
-		panic(fmt.Sprintf("Error while trying to initialize Notif Handler :'%v'\n", err))
-	}
-	return &NotifNcapHandler{Name: name, memSeg: memSeg, notifMessage: &notifObj, msgSerDeSer: capnplibMsg}
+	return &NotifNcapHandler{Name: name}
 }
 
 // -----------------------------------------------------------------------------
 
+// NotifNcapSerialize serializes a NotifMessage into packed Cap'n Proto binary format.
+// Allocates a fresh message arena per call to avoid unbounded memory leaks and data races [NS-6].
 func (notifNcapHandler *NotifNcapHandler) NotifNcapSerialize(notifMessage *utils.NotifMessage) []byte {
-	notifNcapHandler.notifMessage.SetMessage_(notifMessage.Message)
-	notifNcapHandler.notifMessage.SetAttachment(notifMessage.Attachment)
-	notifNcapHandler.notifMessage.SetLevel(notifMessage.Level)
+	if notifMessage == nil {
+		return nil
+	}
+
+	capnplibMsg, memSeg, err := capnplib.NewMessage(capnplib.SingleSegment(nil))
+	if err != nil {
+		return nil
+	}
+
+	notifObj, err := notifMsg.NewRootNotifierMsg(memSeg)
+	if err != nil {
+		return nil
+	}
+
+	_ = notifObj.SetMessage_(notifMessage.Message)
+	_ = notifObj.SetAttachment(notifMessage.Attachment)
+	_ = notifObj.SetLevel(notifMessage.Level)
 
 	// Create new text list for tags
-	tList, _ := capnplib.NewTextList(notifNcapHandler.memSeg, int32(len(notifMessage.Tags)))
-	for i, val := range notifMessage.Tags {
-		tList.Set(i, val)
+	tList, err := capnplib.NewTextList(memSeg, int32(len(notifMessage.Tags)))
+	if err == nil {
+		for i, val := range notifMessage.Tags {
+			_ = tList.Set(i, val)
+		}
+		_ = notifObj.SetTags(tList)
 	}
-	notifNcapHandler.notifMessage.SetTags(tList)
 
-	byteMsg, _ := notifNcapHandler.msgSerDeSer.MarshalPacked()
+	byteMsg, err := capnplibMsg.MarshalPacked()
+	if err != nil {
+		return nil
+	}
 	return byteMsg
 }
 

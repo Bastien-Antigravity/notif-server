@@ -17,6 +17,7 @@ KEY PARAMETERS:
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
@@ -139,8 +140,21 @@ func (s *ControlServiceImpl) GetAlertingConfig(ctx context.Context, req *GetAler
 	responseConfig := make(map[string]*AlertingConfigSection)
 
 	for platform, settings := range config {
+		maskedSettings := make(map[string]string, len(settings))
+		for k, v := range settings {
+			upperK := strings.ToUpper(k)
+			if strings.Contains(upperK, "PASS") || strings.Contains(upperK, "TOKEN") || strings.Contains(upperK, "SECRET") || strings.Contains(upperK, "KEY") {
+				if v != "" {
+					maskedSettings[k] = "********"
+				} else {
+					maskedSettings[k] = ""
+				}
+			} else {
+				maskedSettings[k] = v
+			}
+		}
 		responseConfig[platform] = &AlertingConfigSection{
-			Settings: settings,
+			Settings: maskedSettings,
 		}
 	}
 

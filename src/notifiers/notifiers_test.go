@@ -454,3 +454,43 @@ func TestDiscordOnDemandDecryption(t *testing.T) {
 		assert.NotContains(t, log, server.URL)
 	}
 }
+
+func TestGmailAttachmentSanitization(t *testing.T) {
+	logger := &mockTestLogger{}
+	sender, err := NewGmailSender(map[string]string{
+		"FROM":   "test@gmail.com",
+		"TO":     "dest@gmail.com",
+		"PASSWD": "mock_password",
+	}, "gmail", logger, nil)
+	require.NoError(t, err)
+	require.NotNil(t, sender)
+
+	// Traversals should be forbidden
+	_, err = sender.buildEmail("subj", "../../../etc/passwd", "body")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden")
+
+	_, err = sender.buildEmail("subj", "/etc/shadow", "body")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden")
+
+	_, err = sender.buildEmail("subj", "/root/.bashrc", "body")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden")
+}
+
+func TestTelegramRedactError(t *testing.T) {
+	logger := &mockTestLogger{}
+	sender, err := NewTelegramSender(map[string]string{
+		"TOKEN":  "my_secret_bot_token_12345",
+		"CHATID": "123456",
+	}, "telegram", logger, nil)
+	require.NoError(t, err)
+	require.NotNil(t, sender)
+
+	sender.plainToken = "my_secret_bot_token_12345"
+	rawErr := fmt.Errorf("Post https://api.telegram.org/botmy_secret_bot_token_12345/sendMessage: dial error")
+	redacted := sender.redactError(rawErr)
+	assert.NotContains(t, redacted.Error(), "my_secret_bot_token_12345")
+	assert.Contains(t, redacted.Error(), "[REDACTED_BOT_TOKEN]")
+}

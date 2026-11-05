@@ -201,6 +201,10 @@ func SetupTelegram(appConfig *toolbox_config.AppConfig, controller notif_core.No
 		return
 	}
 
+	if host == "0.0.0.0" || host == "" {
+		host = "127.0.0.1"
+	}
+
 	teleClient := toolbox_teleclient.NewTeleClient("Notif Server", host, port, logger)
 	mgr := NewMenuManager(teleClient, controller, logger)
 

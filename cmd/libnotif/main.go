@@ -19,6 +19,28 @@ package main
 
 /*
 #include <stdlib.h>
+#include <string.h>
+
+#if defined(_MSC_VER)
+    #define THREAD_LOCAL __declspec(thread)
+#else
+    #define THREAD_LOCAL _Thread_local
+#endif
+
+static THREAD_LOCAL char last_error_buf[1024] = {0};
+
+static void set_c_last_error(const char* err) {
+    if (err == NULL) {
+        last_error_buf[0] = '\0';
+        return;
+    }
+    strncpy(last_error_buf, err, sizeof(last_error_buf) - 1);
+    last_error_buf[sizeof(last_error_buf) - 1] = '\0';
+}
+
+static const char* get_c_last_error() {
+    return last_error_buf;
+}
 */
 import "C"
 
@@ -40,15 +62,16 @@ var (
 	connMu  sync.Mutex
 	conns   = make(map[string]*grpc.ClientConn)
 	clients = make(map[string]pb.NotifServiceClient)
-
-	errMu     sync.RWMutex
-	lastError string
 )
 
 func setLastError(err string) {
-	errMu.Lock()
-	lastError = err
-	errMu.Unlock()
+	if err == "" {
+		C.set_c_last_error(nil)
+		return
+	}
+	cStr := C.CString(err)
+	defer C.free(unsafe.Pointer(cStr))
+	C.set_c_last_error(cStr)
 }
 
 func getOrInitClient(targetAddr string) (pb.NotifServiceClient, error) {
@@ -143,12 +166,11 @@ func Notif_SendWithTimeout(targetAddr, level, message, attachment, tagsCSV *C.ch
 
 //export Notif_GetLastError
 func Notif_GetLastError() *C.char {
-	errMu.RLock()
-	defer errMu.RUnlock()
-	if lastError == "" {
+	cErr := C.get_c_last_error()
+	if cErr == nil || *cErr == 0 {
 		return nil
 	}
-	return C.CString(lastError)
+	return C.CString(C.GoString(cErr))
 }
 
 // -----------------------------------------------------------------------------

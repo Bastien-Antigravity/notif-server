@@ -74,6 +74,14 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 	if baseURL == "" {
 		baseURL = "https://api.telegram.org"
 	}
+	// Decrypt URL if encrypted with ENC(...) [NS-3]
+	if decrypt != nil && strings.HasPrefix(baseURL, "ENC(") && strings.HasSuffix(baseURL, ")") {
+		if decryptedURL, err := decrypt(baseURL); err == nil {
+			baseURL = decryptedURL
+		} else {
+			logger.Warning("[%s] Failed to decrypt Telegram URL: %v", tag, err)
+		}
+	}
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		logger.Warning("[%s] Telegram provider configuration invalid: 'URL' must start with 'http://' or 'https://'", tag)
 		return nil, nil
@@ -96,6 +104,21 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 		logger:   logger,
 		decrypt:  decrypt,
 	}, nil
+}
+
+// -----------------------------------------------------------------------------
+
+// redactError strips plain bot token from error messages to prevent credential leaks in logs [NS-4].
+func (ts *TelegramSender) redactError(err error) error {
+	if err == nil {
+		return nil
+	}
+	errStr := err.Error()
+	if ts.plainToken != "" && strings.Contains(errStr, ts.plainToken) {
+		errStr = strings.ReplaceAll(errStr, ts.plainToken, "[REDACTED_BOT_TOKEN]")
+		return fmt.Errorf("%s", errStr)
+	}
+	return err
 }
 
 // -----------------------------------------------------------------------------
@@ -162,7 +185,7 @@ func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsed
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			lastErr = fmt.Errorf("failed to post http request (telegram): %v", err)
+			lastErr = ts.redactError(fmt.Errorf("failed to post http request (telegram): %v", err))
 		}
 
 		ts.logger.Warning("[%s] Telegram delivery attempt %d failed: %v. Retrying in %v...", ts.tag, i+1, lastErr, backoff)
