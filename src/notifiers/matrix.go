@@ -116,7 +116,7 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 		req.Header.Set("Content-Type", "application/json")
 
 		httpsResp, err := client.Do(req)
-		if err == nil {
+		if err == nil && httpsResp != nil {
 			_, _ = io.Copy(io.Discard, httpsResp.Body)
 			httpsResp.Body.Close()
 			if httpsResp.StatusCode == http.StatusOK {

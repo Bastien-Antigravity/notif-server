@@ -112,7 +112,7 @@ func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUse
 		req.Header.Set("Content-Type", "application/json")
 
 		httpsResp, err := client.Do(req)
-		if err == nil {
+		if err == nil && httpsResp != nil {
 			_, _ = io.Copy(io.Discard, httpsResp.Body)
 			httpsResp.Body.Close()
 			if httpsResp.StatusCode == http.StatusOK || httpsResp.StatusCode == http.StatusNoContent {

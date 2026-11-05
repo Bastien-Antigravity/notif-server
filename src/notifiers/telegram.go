@@ -168,7 +168,7 @@ func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsed
 		req.Header.Set("Content-Type", "application/json")
 
 		httpsResp, err := http.DefaultClient.Do(req)
-		if err == nil {
+		if err == nil && httpsResp != nil {
 			_, _ = io.Copy(io.Discard, httpsResp.Body)
 			httpsResp.Body.Close()
 			if httpsResp.StatusCode == http.StatusOK {

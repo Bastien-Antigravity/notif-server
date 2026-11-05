@@ -24,6 +24,28 @@ extern const char *_GoStringPtr(_GoString_ s);
 #line 20 "main.go"
 
 #include <stdlib.h>
+#include <string.h>
+
+#if defined(_MSC_VER)
+    #define THREAD_LOCAL __declspec(thread)
+#else
+    #define THREAD_LOCAL _Thread_local
+#endif
+
+static THREAD_LOCAL char last_error_buf[1024] = {0};
+
+static void set_c_last_error(const char* err) {
+    if (err == NULL) {
+        last_error_buf[0] = '\0';
+        return;
+    }
+    strncpy(last_error_buf, err, sizeof(last_error_buf) - 1);
+    last_error_buf[sizeof(last_error_buf) - 1] = '\0';
+}
+
+static const char* get_c_last_error() {
+    return last_error_buf;
+}
 
 #line 1 "cgo-generated-wrapper"
 

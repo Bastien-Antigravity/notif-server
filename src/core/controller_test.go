@@ -113,6 +113,7 @@ func TestControllerDeepCopyImmutability(t *testing.T) {
 
 	// Mutate the returned config map from GetAlertingConfig
 	cfg := c.GetAlertingConfig()
+	require.NotNil(t, cfg["tg-immutable"])
 	assert.Equal(t, "initial-token", cfg["tg-immutable"]["TOKEN"])
 	cfg["tg-immutable"]["TOKEN"] = "mutated-after-get"
 	cfg["new-provider"] = map[string]string{"TYPE": "DISCORD"}

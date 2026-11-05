@@ -70,20 +70,22 @@ func NewNotifier(appConfig *toolbox_config.AppConfig, logger log_interfaces.Logg
 
 	curNotifier.Logger.AddMetadata("component", "notifier")
 
-	// 1. Initial Load from LiveConfig if present
-	if liveConf := appConfig.Config.LiveConfig.Load(); liveConf != nil {
-		curNotifier.Reload(*liveConf)
-	}
+	if appConfig != nil && appConfig.Config != nil {
+		// 1. Initial Load from LiveConfig if present
+		if liveConf := appConfig.Config.LiveConfig.Load(); liveConf != nil {
+			curNotifier.Reload(*liveConf)
+		}
 
-	// 2. Initialize default providers from static capabilities (e.g. standalone execution)
-	curNotifier.InitDefaultProviders()
-
-	// 3. Register for Live Updates
-	appConfig.Config.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
-		curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
-		curNotifier.Reload(newConf)
+		// 2. Initialize default providers from static capabilities (e.g. standalone execution)
 		curNotifier.InitDefaultProviders()
-	})
+
+		// 3. Register for Live Updates
+		appConfig.Config.OnLiveConfUpdate(func(newConf map[string]map[string]string) {
+			curNotifier.Logger.Info("Live configuration update received. Reloading senders...")
+			curNotifier.Reload(newConf)
+			curNotifier.InitDefaultProviders()
+		})
+	}
 
 	go curNotifier.processMessage()
 

@@ -195,6 +195,9 @@ func verifyTelegramToken(baseURL, token string) (bool, string, error) {
 	if err != nil {
 		return false, "", fmt.Errorf("connection error: %w", err)
 	}
+	if resp == nil {
+		return false, "", fmt.Errorf("empty response received")
+	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
