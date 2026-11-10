@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/grpc_control"
 	unilog_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
@@ -40,10 +41,11 @@ var mfeJS string
 // -----------------------------------------------------------------------------
 
 type RESTHandler struct {
-	logger  unilog_interfaces.Logger
-	control *grpc_control.ControlServiceImpl
-	server  *http.Server
-	mu      sync.Mutex
+	logger    unilog_interfaces.Logger
+	control   *grpc_control.ControlServiceImpl
+	appConfig *toolbox_config.AppConfig
+	server    *http.Server
+	mu        sync.Mutex
 }
 
 // -----------------------------------------------------------------------------
@@ -56,6 +58,11 @@ func NewRESTHandler(controller notif_core.NotifController, logger unilog_interfa
 	}
 }
 
+// SetAppConfig attaches the ecosystem AppConfig for live endpoint resolution in /api/v1/contracts.
+func (h *RESTHandler) SetAppConfig(cfg *toolbox_config.AppConfig) {
+	h.appConfig = cfg
+}
+
 // -----------------------------------------------------------------------------
 
 // RegisterRoutes registers the REST routes to the provided mux
@@ -64,6 +71,7 @@ func (h *RESTHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/notif/test", h.handleSendTest)
 	mux.HandleFunc("/api/v1/config/reload", h.handleReloadConfig)
 	mux.HandleFunc("/api/v1/status", h.handleStatus)
+	mux.HandleFunc("/api/v1/contracts", h.handleContracts)
 	mux.HandleFunc("/api/v1/config/alerting/get", h.handleGetAlertingConfig)
 	mux.HandleFunc("/api/v1/config/alerting/set", h.handleSetAlertingConfig)
 	mux.HandleFunc("/api/v1/config/alerting/add", h.handleAddProvider)

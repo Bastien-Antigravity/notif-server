@@ -74,6 +74,7 @@ func main() {
 	}
 
 	restHandler := rest.NewRESTHandler(controller, uniLog)
+	restHandler.SetAppConfig(appConfig)
 	go func() {
 		if err := restHandler.StartServer(restAddr); err != nil {
 			uniLog.Error("REST management server failed: %v", err)
@@ -102,6 +103,7 @@ func main() {
 		Protocol:    "TCP, gRPC & REST",
 		Framing:     fmt.Sprintf("Port %s TCP / Port %s gRPC / Port %s REST", tcpPort, grpcPort, restPort),
 		DocLink:     "obsidian-brain/06-Microservices/Notif-Server-Hub.md",
+		Contracts:   rest.BuildExchangeContracts(appConfig, nil, []string{"telegram", "discord", "gmail", "matrix"}),
 	})
 
 	// 8. Bind Tele-Remote dynamic control menus

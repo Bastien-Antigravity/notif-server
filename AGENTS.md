@@ -6,7 +6,7 @@
 - **Exposed Capability**: `notif_server`
   - **TCP Ingestion Protocol**: (`appConfig.GetListenAddr("notif_server")`) — framed TCP ingestion via `safe-socket`
   - **gRPC Service & Control**: (`appConfig.GetGRPCListenAddr("notif_server")`) — Protobuf ingestion and management
-  - **REST & OpenMFE**: (`appConfig.GetRESTAddr("notif_server")`) — HTTP REST management and OpenMFE host
+  - **REST & OpenMFE**: (`appConfig.GetRESTAddr("notif_server")`) — HTTP REST management (`/api/v1/contracts`), embedded schemas (`notif_service.proto`, `notif_server.proto`, `notifier.capnp`), and OpenMFE host (`#notif-tabs-bar`)
 - **Downstream Integrations**: `web-interface`, Telegram, Discord APIs
 - **Libraries**: `microservice-toolbox`, `universal-logger`, `distributed-config`
 - **Configuration Link**: `standalone.yaml -> ../docker-deployment/modes/local/config/native.yaml`

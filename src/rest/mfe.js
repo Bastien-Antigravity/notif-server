@@ -117,49 +117,60 @@ class NotifServerMFE extends BaseElementClass {
                     </div>
                 </div>
 
-                <!-- Send Test Notification Card -->
-                <div class="openmfe-card" style="margin-top: var(--space-4, 16px);">
-                    <div class="openmfe-card__header">
-                        <h4 class="openmfe-card__title"><i class="fa fa-paper-plane-o"></i> Test Delivery Sandbox</h4>
-                    </div>
-                    <div class="openmfe-card__body">
-                        <form id="mfe-test-notif-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
-                            <div class="openmfe-form-group" style="flex:1; min-width:120px; margin-bottom:0;">
-                                <label class="openmfe-form-label">Level</label>
-                                <select id="test-level" class="openmfe-form-select">
-                                    <option value="INFO">INFO</option>
-                                    <option value="WARNING">WARNING</option>
-                                    <option value="ERROR">ERROR</option>
-                                    <option value="DEBUG">DEBUG</option>
-                                </select>
-                            </div>
-                            <div class="openmfe-form-group" style="flex:2; min-width:180px; margin-bottom:0;">
-                                <label class="openmfe-form-label">Title</label>
-                                <input type="text" id="test-title" class="openmfe-form-input" placeholder="e.g. System Alert">
-                            </div>
-                            <div class="openmfe-form-group" style="flex:3; min-width:260px; margin-bottom:0;">
-                                <label class="openmfe-form-label">Message</label>
-                                <input type="text" id="test-message" class="openmfe-form-input" required placeholder="Type test notification message...">
-                            </div>
-                            <button type="submit" class="openmfe-btn openmfe-btn--primary" style="height:38px;">
-                                <i class="fa fa-paper-plane"></i> Send Test
-                            </button>
-                        </form>
-                    </div>
+                <!-- Sub-Navigation Tabs Bar (div[3]) -->
+                <div class="openmfe-tabs-bar" id="notif-tabs-bar" role="tablist">
+                    <button class="openmfe-tab-btn is-active" data-tab="operations" role="tab" type="button">
+                        <i class="fa fa-bell"></i> Dispatch & Providers
+                    </button>
                 </div>
-                
-                <!-- Configurations Accordion -->
-                <div class="openmfe-card" style="margin-top: var(--space-4, 16px);">
-                    <div class="openmfe-card__header">
-                        <h4 class="openmfe-card__title"><i class="fa fa-bell-o"></i> Alerting Providers</h4>
-                        <button class="openmfe-btn openmfe-btn--sm openmfe-btn--outline" id="mfe-add-provider-btn">
-                            <i class="fa fa-plus"></i> Add Provider
-                        </button>
-                    </div>
-                    <div class="openmfe-card__body" style="padding: 0;">
-                        <div id="mfe-accordion-list">
-                            <div style="padding:40px; text-align:center; color:var(--color-text-muted, #94a3b8);">
-                                <i class="fa fa-spinner fa-spin fa-2x"></i><br><br>Loading alerting providers...
+
+                <div id="notif-panels-host">
+                    <div class="openmfe-panel is-active" id="panel-operations">
+                        <!-- Send Test Notification Card -->
+                        <div class="openmfe-card">
+                            <div class="openmfe-card__header">
+                                <h4 class="openmfe-card__title"><i class="fa fa-paper-plane-o"></i> Test Delivery Sandbox</h4>
+                            </div>
+                            <div class="openmfe-card__body">
+                                <form id="mfe-test-notif-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+                                    <div class="openmfe-form-group" style="flex:1; min-width:120px; margin-bottom:0;">
+                                        <label class="openmfe-form-label">Level</label>
+                                        <select id="test-level" class="openmfe-form-select">
+                                            <option value="INFO">INFO</option>
+                                            <option value="WARNING">WARNING</option>
+                                            <option value="ERROR">ERROR</option>
+                                            <option value="DEBUG">DEBUG</option>
+                                        </select>
+                                    </div>
+                                    <div class="openmfe-form-group" style="flex:2; min-width:180px; margin-bottom:0;">
+                                        <label class="openmfe-form-label">Title</label>
+                                        <input type="text" id="test-title" class="openmfe-form-input" placeholder="e.g. System Alert">
+                                    </div>
+                                    <div class="openmfe-form-group" style="flex:3; min-width:260px; margin-bottom:0;">
+                                        <label class="openmfe-form-label">Message</label>
+                                        <input type="text" id="test-message" class="openmfe-form-input" required placeholder="Type test notification message...">
+                                    </div>
+                                    <button type="submit" class="openmfe-btn openmfe-btn--primary" style="height:38px;">
+                                        <i class="fa fa-paper-plane"></i> Send Test
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        
+                        <!-- Configurations Accordion -->
+                        <div class="openmfe-card" style="margin-top: var(--space-4, 16px);">
+                            <div class="openmfe-card__header">
+                                <h4 class="openmfe-card__title"><i class="fa fa-bell-o"></i> Alerting Providers</h4>
+                                <button class="openmfe-btn openmfe-btn--sm openmfe-btn--outline" id="mfe-add-provider-btn">
+                                    <i class="fa fa-plus"></i> Add Provider
+                                </button>
+                            </div>
+                            <div class="openmfe-card__body" style="padding: 0;">
+                                <div id="mfe-accordion-list">
+                                    <div style="padding:40px; text-align:center; color:var(--color-text-muted, #94a3b8);">
+                                        <i class="fa fa-spinner fa-spin fa-2x"></i><br><br>Loading alerting providers...
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -247,11 +258,26 @@ class NotifServerMFE extends BaseElementClass {
             testTitle: this.querySelector('#test-title'),
             testMessage: this.querySelector('#test-message'),
             addTypeSelect: this.querySelector('#add-type'),
-            addTagInput: this.querySelector('#add-tag')
+            addTagInput: this.querySelector('#add-tag'),
+            tabsBar: this.querySelector('#notif-tabs-bar'),
+            panelsHost: this.querySelector('#notif-panels-host')
         };
     }
 
+    switchTab(tabName) {
+        this.activeTab = tabName || 'operations';
+        this.querySelectorAll('#notif-tabs-bar .openmfe-tab-btn').forEach(btn => {
+            btn.classList.toggle('is-active', btn.getAttribute('data-tab') === this.activeTab);
+        });
+        this.querySelectorAll('#notif-panels-host > .openmfe-panel').forEach(panel => {
+            panel.classList.toggle('is-active', panel.id === `panel-${this.activeTab}`);
+        });
+    }
+
     bindEvents() {
+        this.querySelectorAll('#notif-tabs-bar .openmfe-tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.switchTab(btn.getAttribute('data-tab')));
+        });
         this.querySelectorAll('.mfe-close-add-modal').forEach(el => {
             el.addEventListener('click', () => this.dom.addModal?.classList.remove('show'));
         });
@@ -294,12 +320,31 @@ class NotifServerMFE extends BaseElementClass {
     }
 
     async onMount() {
+        this.activeTab = this.activeTab || 'operations';
         await this.loadAll();
         this.registerPoll(() => this.loadStatus(), 5000, false);
     }
 
     async loadAll() {
-        await Promise.all([this.loadStatus(), this.loadNotifiers(), this.loadAlertingConfig(), this.loadSupportedTypes()]);
+        await Promise.all([this.loadStatus(), this.loadNotifiers(), this.loadAlertingConfig(), this.loadSupportedTypes(), this.loadContracts()]);
+    }
+
+    async loadContracts() {
+        const contractsApi = typeof window !== 'undefined' ? window.BastienMFEContracts : null;
+        if (!contractsApi || !this.dom.tabsBar || !this.dom.panelsHost) return;
+        const envelope = await contractsApi.fetchContracts({
+            primaryUrls: [`${this.baseUrl}/api/v1/contracts`],
+            serviceName: 'notif_server'
+        });
+        contractsApi.mountContractTabs({
+            rootEl: this,
+            tabsBarEl: this.dom.tabsBar,
+            panelsHostEl: this.dom.panelsHost,
+            envelope,
+            activeTab: this.activeTab,
+            onSwitchTab: (tab) => this.switchTab(tab),
+            onRetry: () => this.loadContracts()
+        });
     }
 
     async loadStatus() {
