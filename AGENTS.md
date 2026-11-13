@@ -24,7 +24,7 @@ go test -v ./...
 ```
 
 ## AI Development & Integration Guidelines
-1. **Dynamic Web Registration**: OpenMFE UI registers with `web-interface` at `http://<webAddr>/api/v1/register`. Ensure fallback address defaults to `127.0.0.1:5000` (never legacy 8080).
+1. **Dynamic Web Registration**: OpenMFE UI registers with `web-interface` resolved dynamically via `appConfig.GetListenAddr("web_interface")` (`http://<webAddr>/api/v1/register`). Zero hardcoded fallback addresses (fail fast if capability is unconfigured).
 2. **Encrypted Credentials**: Telegram bot tokens and Discord webhook URLs must be loaded as encrypted strings (`ENC(...)`) and decrypted via `appConfig.DecryptSecret()`.
 3. **Resilient Dispatch**: Outgoing HTTP calls to notification providers must use timeout-guarded clients and circuit breakers from `microservice-toolbox/go/pkg/resilience`.
 4. **Header Ritual**: All Go source files MUST begin with the Triple-Block header (`ESSENTIAL PROCESS`, `DATA FLOW`, `KEY PARAMETERS`).
