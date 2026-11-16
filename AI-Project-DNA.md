@@ -22,7 +22,7 @@ tags:
 - **Language**: Go
 - **Ingress Protocols**: gRPC (Protobuf), TCP (Cap'n Proto).
 - **Hardening**: Non-blocking worker pools per platform; 10m IdleTimeout; ReadMessage framing.
-- **Architecture Standard**: Adheres to the ecosystem-wide standards in .
+- **Architecture & Service Standard**: Adheres to [`./AGENTS.md`](AGENTS.md), workspace root [`../AGENTS.md`](../AGENTS.md), and `../obsidian-brain/03-Tech-Stack/02-Project-Architecture/Global-Architecture-Rules.md`.
 
 ## 👥 Roles & Responsibilities
 - **Architect**: 
