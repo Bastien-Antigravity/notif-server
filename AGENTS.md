@@ -25,8 +25,8 @@ go test -v ./...
 
 ## AI Development & Integration Guidelines
 1. **Dynamic Web Registration**: OpenMFE UI registers with `web-interface` resolved dynamically via `appConfig.GetListenAddr("web_interface")` (`http://<webAddr>/api/v1/register`). Zero hardcoded fallback addresses (fail fast if capability is unconfigured).
-2. **Encrypted Credentials**: Telegram bot tokens and Discord webhook URLs must be loaded as encrypted strings (`ENC(...)`) and decrypted via `appConfig.DecryptSecret()`.
-3. **Resilient Dispatch**: Outgoing HTTP calls to notification providers must use timeout-guarded clients and circuit breakers from `microservice-toolbox/go/pkg/resilience`.
+2. **Credentials & Immutable Senders**: Provider secrets (`ENC(...)` or plaintext) are decrypted **once at sender instantiation** via `appConfig.DecryptSecret()` inside `New...Sender()` (failing fast on corrupt ciphertext). Once constructed, sender instances are immutable and thread-safe without lazy caches or mutexes on the hot dispatch path.
+3. **Resilient Dispatch & Security Boundaries**: Outgoing HTTP calls use per-sender reusable timeout-guarded `*http.Client` instances with exponential retry backoff. Gmail attachments are strictly restricted to a configured root directory (`ATTACHMENT_DIR` / `ATTACHMENT_ROOT`, defaulting to `<TempDir>/notif-attachments`), symlink-verified via `filepath.EvalSymlinks`, capped at 10 MB, and MIME headers are CRLF-sanitized.
 4. **Header Ritual**: All Go source files MUST begin with the Triple-Block header (`ESSENTIAL PROCESS`, `DATA FLOW`, `KEY PARAMETERS`).
 5. **Section Dividers**: Use `// -----------------------------------------------------------------------------` between exported methods and major blocks.
 6. **Main Notification Provider Standard**:
@@ -47,4 +47,9 @@ go test -v ./...
    - Polyglot bindings and client wrappers reside under `notif/` (`notif/libnotif/`, `notif/cpp/`, `notif/vba/`, `notif/python/`, `notif/rust/`), adhering to the exact same architectural pattern as `universal-logger` (`libunilog` / `unilog/`) and `distributed-config` (`libdistconf` / `distconf/`).
    - Downstream facades across the fleet (such as `microservice-toolbox`) bind to `libnotif` to dispatch direct gRPC alerts without redundant gRPC client compilation overhead.
    - **Testing Boundary Standard**: In accordance with the 3-Tier Testing Pyramid, `notif-server` tests its internal Go daemon (`go test ./...`) and compiles `libnotif`. Comprehensive end-user polyglot client testing is centrally owned by `microservice-toolbox` (`tests/` across Go, Python, Rust, C++), and multi-service E2E scenario validation is owned by `sandbox-testing`. Redundant sub-tests are not maintained inside `notif-server/notif/`.
+9. **Worker Lifecycle, Live Hot-Reload & Health Telemetry**:
+   - **Single Sequential Worker per Provider**: Each configured provider (including multiple instances of the same platform type) owns 1 isolated buffered queue (cap 100) and 1 dedicated worker goroutine (`for msg := range queue`), preserving delivery order and avoiding rate-limit bursts.
+   - **Zero-Loss Live Hot-Reload**: `Notifier.Reload(newConf)` diffs cloned config snapshots, closes replaced sender queues so old workers finish draining (`<-prevDone`), and mounts freshly instantiated immutable senders with updated credentials on the fly.
+   - **Controlled Idempotent Shutdown**: `Notifier.Stop()` (guarded by `sync.Once`) sets `isStopping`, rejects new `Notify()` / `Reload()` / `RegisterSender()` calls, drains `NotifChan` into provider queues (`processWg`), closes all provider queues, and awaits full worker termination (`workersWg`).
+   - **Real-Time Health & Drop Metrics**: `GetActiveNotifiers()` computes live states (`Initialized`, `Operational`, `Degraded`, `Unavailable`, `Stopped`) from consecutive delivery failures and queue saturation (>=80%), and exposes `delivered`, `failed`, `dropped`, and `queue_depth` counters through `Controller.GetStatus()` and gRPC/REST `/api/v1/status`.
 

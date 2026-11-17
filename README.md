@@ -20,11 +20,13 @@ tags:
 
 - **Multi-Protocol Ingress**: Simultaneous support for **gRPC (Protobuf)** and **Hardened TCP (Cap'n Proto)**.
 - **Resilient Dispatch**:
-    - **Worker Pools**: 5 dedicated workers per platform to ensure isolation.
+    - **Isolated Provider Workers**: 1 dedicated sequential worker and buffered queue per configured provider (preserves strict message ordering, avoids API rate-limit violations, and isolates slow endpoints).
     - **Exponential Backoff**: Smart retries for transient network and API errors.
-    - **Zero Backpressure**: Asynchronous architecture ensures slow APIs never block ingestion.
+    - **Zero Backpressure**: Asynchronous architecture with tracked load-shedding ensures slow APIs never block ingestion.
+    - **Real-Time Telemetry**: Dynamic provider health states (`Initialized`, `Operational`, `Degraded`, `Unavailable`, `Stopped`), queue depth, delivery/failure counts, and drop counters via `/api/v1/status` and gRPC `GetStatus`.
 - **Architectural Hardening**:
     - **Stable Identity**: Host-based tracking (strips dynamic ports).
+    - **Graceful Lifecycle**: Live hot-reload with sequential queue draining and idempotent shutdown.
     - **Resource Protection**: 10-minute idle pruning and Load-Shedding during spikes.
 - **Universal Standards**: Strictly adheres to the ecosystem-wide **I/M Naming Prefixes** and governance headers.
 

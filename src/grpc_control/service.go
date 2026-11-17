@@ -122,10 +122,29 @@ func (s *ControlServiceImpl) GetStatus(ctx context.Context, req *GetStatusReques
 	s.logger.Debug("%s : received GetStatus request", s.Name)
 
 	details, _ := s.controller.GetStatus()
+	notifiers := s.controller.ListNotifiers()
+
+	healthy := true
+	statusText := "Operational"
+	if len(notifiers) > 0 {
+		unhealthy := 0
+		for _, n := range notifiers {
+			if !n.Healthy {
+				unhealthy++
+			}
+		}
+		if unhealthy == len(notifiers) {
+			healthy = false
+			statusText = "Unavailable"
+		} else if unhealthy > 0 {
+			healthy = false
+			statusText = "Degraded"
+		}
+	}
 
 	return &GetStatusResponse{
-		Healthy:   true,
-		Status:    "Operational",
+		Healthy:   healthy,
+		Status:    statusText,
 		Version:   notif_core.ServerVersion, // Standard platform versioning
 		Timestamp: time.Now().Unix(),
 		Details:   details,

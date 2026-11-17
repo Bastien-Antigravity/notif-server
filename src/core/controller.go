@@ -19,6 +19,7 @@ KEY PARAMETERS:
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	toolbox_version "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/version"
 	unilog_utils "github.com/Bastien-Antigravity/universal-logger/src/utils"
@@ -34,11 +35,19 @@ var ServerVersion = toolbox_version.Get()
 // Models & Interfaces
 // -----------------------------------------------------------------------------
 
-// NotifierInfo provides a summary of an active notifier.
+// NotifierInfo provides a summary of an active notifier including real-time health metrics.
 type NotifierInfo struct {
-	Name    string
-	Type    string
-	Healthy bool
+	Name                string
+	Type                string
+	Healthy             bool
+	State               string
+	QueueDepth          int
+	DeliveredCount      uint64
+	FailedCount         uint64
+	DroppedCount        uint64
+	ConsecutiveFailures int64
+	LastSuccess         time.Time
+	LastError           string
 }
 
 // NotifController defines the unified interface for notification management.
@@ -70,15 +79,23 @@ func NewController(n *Notifier) *Controller {
 
 // -----------------------------------------------------------------------------
 
-// ListNotifiers returns the list of configured notifiers.
+// ListNotifiers returns the list of configured notifiers with live health telemetry.
 func (c *Controller) ListNotifiers() []NotifierInfo {
 	notifiers := c.notifier.GetActiveNotifiers()
 	res := make([]NotifierInfo, 0, len(notifiers))
 	for _, n := range notifiers {
 		res = append(res, NotifierInfo{
-			Name:    n.Name,
-			Type:    n.Type,
-			Healthy: n.Healthy,
+			Name:                n.Name,
+			Type:                n.Type,
+			Healthy:             n.Healthy,
+			State:               n.State,
+			QueueDepth:          n.QueueDepth,
+			DeliveredCount:      n.DeliveredCount,
+			FailedCount:         n.FailedCount,
+			DroppedCount:        n.DroppedCount,
+			ConsecutiveFailures: n.ConsecutiveFailures,
+			LastSuccess:         n.LastSuccess,
+			LastError:           n.LastError,
 		})
 	}
 	return res
@@ -126,11 +143,43 @@ func (c *Controller) ReloadConfig() error {
 
 // -----------------------------------------------------------------------------
 
-// GetStatus returns server health and metadata.
+// GetStatus returns server health and real-time delivery/backpressure telemetry.
 func (c *Controller) GetStatus() (map[string]string, error) {
 	details := make(map[string]string)
 	notifiers := c.notifier.GetActiveNotifiers()
+
+	var healthyCount, degradedCount int
+	var totalDelivered, totalFailed, totalDropped uint64
+	droppedIngestion := c.notifier.GetDroppedIngestionCount()
+
+	for _, n := range notifiers {
+		if n.Healthy {
+			healthyCount++
+		} else {
+			degradedCount++
+		}
+		totalDelivered += n.DeliveredCount
+		totalFailed += n.FailedCount
+		totalDropped += n.DroppedCount
+
+		details[fmt.Sprintf("provider_%s_state", n.Name)] = n.State
+		details[fmt.Sprintf("provider_%s_queue_depth", n.Name)] = fmt.Sprintf("%d", n.QueueDepth)
+		if n.DroppedCount > 0 {
+			details[fmt.Sprintf("provider_%s_dropped", n.Name)] = fmt.Sprintf("%d", n.DroppedCount)
+		}
+		if n.LastError != "" {
+			details[fmt.Sprintf("provider_%s_last_error", n.Name)] = n.LastError
+		}
+	}
+
 	details["active_notifiers"] = fmt.Sprintf("%d", len(notifiers))
+	details["healthy_notifiers"] = fmt.Sprintf("%d", healthyCount)
+	details["degraded_notifiers"] = fmt.Sprintf("%d", degradedCount)
+	details["ingestion_queue_depth"] = fmt.Sprintf("%d", c.notifier.GetIngestionQueueDepth())
+	details["dropped_ingestion"] = fmt.Sprintf("%d", droppedIngestion)
+	details["total_delivered"] = fmt.Sprintf("%d", totalDelivered)
+	details["total_failed"] = fmt.Sprintf("%d", totalFailed)
+	details["total_dropped"] = fmt.Sprintf("%d", totalDropped+droppedIngestion)
 	return details, nil
 }
 

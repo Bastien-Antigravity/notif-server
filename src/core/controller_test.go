@@ -177,9 +177,9 @@ func TestSendTestNotificationRoutesToActiveSenders(t *testing.T) {
 
 	// Wait for worker pool consumption
 	assert.Eventually(t, func() bool {
-		return mock.called
+		return mock.isCalled()
 	}, 2*time.Second, 20*time.Millisecond, "Mock sender should receive the test notification")
 
-	assert.Equal(t, "[test] hello from test", mock.lastMsg)
+	assert.Equal(t, "[test] hello from test", mock.getLastMsg())
 }
 

@@ -41,15 +41,15 @@ import (
 )
 
 type GmailSender struct {
-	tag      string
-	from     string
-	to       string
-	smtp     string
-	port     int
-	passwd   string
-	logLevel string
-	logger   log_interfaces.Logger
-	decrypt  func(string) (string, error)
+	tag           string
+	from          string
+	to            string
+	smtp          string
+	port          int
+	passwd        string
+	logLevel      string
+	logger        log_interfaces.Logger
+	attachmentDir string
 }
 
 // -----------------------------------------------------------------------------
@@ -79,12 +79,13 @@ func NewGmailSender(gmailConf map[string]string, confName string, logger log_int
 		return nil, nil
 	}
 
-	if decrypt != nil && strings.HasPrefix(passwd, "ENC(") && strings.HasSuffix(passwd, ")") {
-		if decrypted, err := decrypt(passwd); err == nil {
-			passwd = decrypted
-		} else {
-			logger.Warning("[%s] Failed to decrypt password: %v", tag, err)
+	// Decrypt password once at instantiation
+	if decrypt != nil {
+		dec, err := decrypt(passwd)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt gmail smtp password: %w", err)
 		}
+		passwd = dec
 	}
 
 	if !strings.Contains(from, "@") {
@@ -111,18 +112,23 @@ func NewGmailSender(gmailConf map[string]string, confName string, logger log_int
 		smtpPort = p
 	}
 
+	attachmentDir := getOption(gmailConf, "ATTACHMENT_DIR", "attachment_dir", "ATTACHMENT_ROOT", "attachment_root")
+	if attachmentDir == "" {
+		attachmentDir = filepath.Join(os.TempDir(), "notif-attachments")
+	}
+
 	logger.Info("[%s] Gmail notification provider initialized", tag)
 
 	return &GmailSender{
-		tag:      tag,
-		from:     from,
-		to:       to,
-		smtp:     smtpHost,
-		port:     smtpPort,
-		passwd:   passwd,
-		logLevel: logLevel,
-		logger:   logger,
-		decrypt:  decrypt,
+		tag:           tag,
+		from:          from,
+		to:            to,
+		smtp:          smtpHost,
+		port:          smtpPort,
+		passwd:        passwd,
+		logLevel:      logLevel,
+		logger:        logger,
+		attachmentDir: attachmentDir,
 	}, nil
 }
 
@@ -243,13 +249,7 @@ func (gmailSender *GmailSender) dialAndSend(ctx context.Context, payload []byte)
 		}
 	}
 
-	// Decrypt password if still encrypted with ENC(...)
 	passwd := gmailSender.passwd
-	if gmailSender.decrypt != nil && strings.HasPrefix(passwd, "ENC(") && strings.HasSuffix(passwd, ")") {
-		if dec, err := gmailSender.decrypt(passwd); err == nil {
-			passwd = dec
-		}
-	}
 
 	// 4. Authenticate
 	// Note: For Gmail with 2-Factor Authentication, PASSWD must be an App Password (16 characters).
@@ -292,14 +292,61 @@ func (gmailSender *GmailSender) dialAndSend(ctx context.Context, payload []byte)
 
 // -----------------------------------------------------------------------------
 
+const maxAttachmentSize = 10 * 1024 * 1024 // 10MB limit
+
+func sanitizeEmailHeader(val string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(val, "\r", ""), "\n", "")
+}
+
+func (gmailSender *GmailSender) validateAttachmentPath(attachment string) (string, error) {
+	if strings.Contains(attachment, "..") {
+		return "", fmt.Errorf("attachment path %q is forbidden: directory traversal not allowed", attachment)
+	}
+
+	cleanPath := filepath.Clean(attachment)
+
+	allowedDir := gmailSender.attachmentDir
+	if allowedDir == "" {
+		allowedDir = filepath.Join(os.TempDir(), "notif-attachments")
+	}
+	cleanAllowedDir := filepath.Clean(allowedDir)
+
+	var targetPath string
+	if filepath.IsAbs(cleanPath) {
+		targetPath = cleanPath
+	} else {
+		targetPath = filepath.Join(cleanAllowedDir, cleanPath)
+	}
+
+	rel, err := filepath.Rel(cleanAllowedDir, targetPath)
+	if err != nil || strings.HasPrefix(rel, "..") || strings.HasPrefix(rel, "/") {
+		return "", fmt.Errorf("attachment path %q is forbidden: outside allowed directory %s", attachment, cleanAllowedDir)
+	}
+
+	// If file exists, ensure symlinks do not escape cleanAllowedDir
+	if realTarget, err := filepath.EvalSymlinks(targetPath); err == nil {
+		realAllowed, err := filepath.EvalSymlinks(cleanAllowedDir)
+		if err == nil {
+			relReal, err := filepath.Rel(realAllowed, realTarget)
+			if err != nil || strings.HasPrefix(relReal, "..") || strings.HasPrefix(relReal, "/") {
+				return "", fmt.Errorf("attachment path %q is forbidden: symlink escapes allowed directory", attachment)
+			}
+		}
+	}
+
+	return targetPath, nil
+}
+
+// -----------------------------------------------------------------------------
+
 func (gmailSender *GmailSender) buildEmail(subject, attachment, body string) ([]byte, error) {
 	var email bytes.Buffer
 	writer := multipart.NewWriter(&email)
 
-	// Headers
-	email.WriteString(fmt.Sprintf("From: %s\r\n", gmailSender.from))
-	email.WriteString(fmt.Sprintf("To: %s\r\n", gmailSender.to))
-	email.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	// Headers with CRLF injection protection [Issue 9]
+	email.WriteString(fmt.Sprintf("From: %s\r\n", sanitizeEmailHeader(gmailSender.from)))
+	email.WriteString(fmt.Sprintf("To: %s\r\n", sanitizeEmailHeader(gmailSender.to)))
+	email.WriteString(fmt.Sprintf("Subject: %s\r\n", sanitizeEmailHeader(subject)))
 	email.WriteString("MIME-Version: 1.0\r\n")
 	email.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=%s\r\n", writer.Boundary()))
 	email.WriteString("\r\n")
@@ -311,27 +358,30 @@ func (gmailSender *GmailSender) buildEmail(subject, attachment, body string) ([]
 	}
 	bodyPart.Write([]byte(body))
 
-	// Attachment
+	// Attachment validation and embedding [Issue 8 & 9]
 	if attachment != "" {
-		cleanPath := filepath.Clean(attachment)
-		// Restrict attachments to avoid path traversal and exfiltration of sensitive system files [NS-2]
-		if strings.Contains(attachment, "..") ||
-			strings.HasPrefix(cleanPath, "/etc") ||
-			strings.HasPrefix(cleanPath, "/root") ||
-			strings.Contains(cleanPath, ".ssh") ||
-			strings.Contains(cleanPath, "bastien/private") {
-			return nil, fmt.Errorf("attachment path %q is forbidden", attachment)
+		resolvedPath, err := gmailSender.validateAttachmentPath(attachment)
+		if err != nil {
+			return nil, err
 		}
 
-		attachmentBytes, err := os.ReadFile(cleanPath)
+		fileInfo, err := os.Stat(resolvedPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to stat attachment: %w", err)
+		}
+		if fileInfo.Size() > maxAttachmentSize {
+			return nil, fmt.Errorf("attachment file size (%d bytes) exceeds maximum allowed limit (%d bytes)", fileInfo.Size(), maxAttachmentSize)
+		}
+
+		attachmentBytes, err := os.ReadFile(resolvedPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read attachment: %w", err)
 		}
 
 		h := make(map[string][]string)
-		h["Content-Type"] = []string{fmt.Sprintf("application/octet-stream; name=\"%s\"", filepath.Base(cleanPath))}
+		h["Content-Type"] = []string{fmt.Sprintf("application/octet-stream; name=\"%s\"", filepath.Base(resolvedPath))}
 		h["Content-Transfer-Encoding"] = []string{"base64"}
-		h["Content-Disposition"] = []string{fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(cleanPath))}
+		h["Content-Disposition"] = []string{fmt.Sprintf("attachment; filename=\"%s\"", filepath.Base(resolvedPath))}
 
 		part, err := writer.CreatePart(h)
 		if err != nil {

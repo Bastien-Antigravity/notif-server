@@ -16,6 +16,7 @@ DATA FLOW:
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,13 +35,24 @@ import (
 
 // mockLogger implements the underlying logger interface for UniLog
 type mockLogger struct {
+	mu           sync.Mutex
 	CapturedLogs []string
+}
+
+func (m *mockLogger) getLogs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, len(m.CapturedLogs))
+	copy(out, m.CapturedLogs)
+	return out
 }
 
 func (m *mockLogger) Debug(format string, args ...any) { fmt.Printf("DEBUG: "+format+"\n", args...) }
 func (m *mockLogger) Info(format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
+	m.mu.Lock()
 	m.CapturedLogs = append(m.CapturedLogs, msg)
+	m.mu.Unlock()
 	fmt.Printf("INFO: "+format+"\n", args...)
 }
 func (m *mockLogger) Warning(format string, args ...any) { fmt.Printf("WARN: "+format+"\n", args...) }
@@ -65,10 +77,14 @@ func (m *mockLogger) AddMetadata(key string, value any) {}
 // Required by UniLog
 func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {
 	msg := fmt.Sprintf(format, args...)
+	m.mu.Lock()
 	m.CapturedLogs = append(m.CapturedLogs, msg)
+	m.mu.Unlock()
 }
 func (m *mockLogger) LogWithCaller(level utils.Level, msg, file, line, function, module string) {
+	m.mu.Lock()
 	m.CapturedLogs = append(m.CapturedLogs, msg)
+	m.mu.Unlock()
 }
 
 // -----------------------------------------------------------------------------
@@ -106,7 +122,7 @@ func TestServerConnection(t *testing.T) {
 	assert.NotNil(t, client, "Client should be connected")
 
 	found := false
-	for _, l := range ml.CapturedLogs {
+	for _, l := range ml.getLogs() {
 		if contains := fmt.Sprintf("listening on 127.0.0.1:9999"); contains != "" {
 			if strings.Contains(l, "listening on 127.0.0.1:9999") {
 				found = true

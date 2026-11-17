@@ -7,15 +7,14 @@ Handles authentication with the Telegram Bot API and executes message delivery.
 Dispatches operational and delivery messages through the ecosystem Universal Logger.
 
 DATA FLOW:
-1. Receives message payload from the core worker.
-2. Marshals the message into JSON.
-3. Posts to the Telegram sendMessage endpoint with exponential backoff.
-4. Logs dispatch lifecycle and delivery results through Logger.
+1. NewTelegramSender parses and decrypts credentials once at instantiation.
+2. Formats payload and delivers to the Telegram sendMessage endpoint with exponential backoff.
+3. Automatically redacts bot token from transport errors to prevent credential leaks.
 
 KEY PARAMETERS:
-- apiURL: The full Telegram Bot API URL including token.
-- chatId: Target Telegram chat or channel ID.
-- logger: Unified logger instance for operational messages.
+- token: Decrypted Telegram Bot API Token.
+- chatId: Decrypted target Telegram Chat ID.
+- baseURL: Telegram API base URL (defaults to https://api.telegram.org).
 */
 
 import (
@@ -32,22 +31,20 @@ import (
 )
 
 type TelegramSender struct {
-	tag         string
-	baseURL     string
-	token       string
-	chatId      string
-	logLevel    string
-	logger      log_interfaces.Logger
-	decrypt     func(string) (string, error)
-	plainToken  string
-	plainChatId string
+	tag      string
+	baseURL  string
+	token    string
+	chatId   string
+	logLevel string
+	logger   log_interfaces.Logger
+	client   *http.Client
 }
 
 // -----------------------------------------------------------------------------
 
 // NewTelegramSender initializes a Telegram notification sender.
-// Configuration is optional: if token or chatId are omitted or empty, the provider
-// is considered unconfigured and returns (nil, nil) without failing.
+// Decrypts credentials once at instantiation. Returns (nil, nil) if unconfigured,
+// or (nil, error) if decryption fails.
 func NewTelegramSender(telegramConf map[string]string, confName string, logger log_interfaces.Logger, decrypt func(string) (string, error)) (*TelegramSender, error) {
 	tag := getOption(telegramConf, "TAG", "tag")
 	if tag == "" {
@@ -74,14 +71,28 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 	if baseURL == "" {
 		baseURL = "https://api.telegram.org"
 	}
-	// Decrypt URL if encrypted with ENC(...) [NS-3]
-	if decrypt != nil && strings.HasPrefix(baseURL, "ENC(") && strings.HasSuffix(baseURL, ")") {
-		if decryptedURL, err := decrypt(baseURL); err == nil {
-			baseURL = decryptedURL
+
+	// Decrypt credentials once at instantiation
+	if decrypt != nil {
+		if decURL, err := decrypt(baseURL); err == nil {
+			baseURL = decURL
 		} else {
 			logger.Warning("[%s] Failed to decrypt Telegram URL: %v", tag, err)
 		}
+
+		decToken, err := decrypt(token)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt telegram bot token: %w", err)
+		}
+		token = decToken
+
+		decChatId, err := decrypt(chatId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt telegram chat id: %w", err)
+		}
+		chatId = decChatId
 	}
+
 	if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
 		logger.Warning("[%s] Telegram provider configuration invalid: 'URL' must start with 'http://' or 'https://'", tag)
 		return nil, nil
@@ -102,7 +113,7 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 		chatId:   chatId,
 		logLevel: logLevel,
 		logger:   logger,
-		decrypt:  decrypt,
+		client:   &http.Client{Timeout: 15 * time.Second},
 	}, nil
 }
 
@@ -114,8 +125,8 @@ func (ts *TelegramSender) redactError(err error) error {
 		return nil
 	}
 	errStr := err.Error()
-	if ts.plainToken != "" && strings.Contains(errStr, ts.plainToken) {
-		errStr = strings.ReplaceAll(errStr, ts.plainToken, "[REDACTED_BOT_TOKEN]")
+	if ts.token != "" && strings.Contains(errStr, ts.token) {
+		errStr = strings.ReplaceAll(errStr, ts.token, "[REDACTED_BOT_TOKEN]")
 		return fmt.Errorf("%s", errStr)
 	}
 	return err
@@ -126,26 +137,10 @@ func (ts *TelegramSender) redactError(err error) error {
 func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	ts.logger.Debug("[%s] Sending notification to Telegram...", ts.tag)
 
-	// Decrypt credentials on-demand and cache in variables for subsequent dispatches
-	if ts.plainToken == "" || ts.plainChatId == "" {
-		plainToken, err := ts.decrypt(ts.token)
-		if err != nil {
-			ts.logger.Error("[%s] Failed to decrypt Telegram bot token", ts.tag)
-			return fmt.Errorf("failed to decrypt telegram bot token: %w", err)
-		}
-		plainChatId, err := ts.decrypt(ts.chatId)
-		if err != nil {
-			ts.logger.Error("[%s] Failed to decrypt Telegram chat ID", ts.tag)
-			return fmt.Errorf("failed to decrypt telegram chat id: %w", err)
-		}
-		ts.plainToken = plainToken
-		ts.plainChatId = plainChatId
-	}
-
-	apiURL := fmt.Sprintf("%s/bot%s/sendMessage", ts.baseURL, ts.plainToken)
+	apiURL := fmt.Sprintf("%s/bot%s/sendMessage", ts.baseURL, ts.token)
 
 	payload := map[string]string{
-		"chat_id": ts.plainChatId,
+		"chat_id": ts.chatId,
 		"text":    msg,
 	}
 	jsonByteMessage, err := json.Marshal(payload)
@@ -167,7 +162,7 @@ func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsed
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		httpsResp, err := http.DefaultClient.Do(req)
+		httpsResp, err := ts.client.Do(req)
 		if err == nil && httpsResp != nil {
 			_, _ = io.Copy(io.Discard, httpsResp.Body)
 			httpsResp.Body.Close()
@@ -185,7 +180,7 @@ func (ts *TelegramSender) SendMessage(ctx context.Context, msg, notUsed, notUsed
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			lastErr = ts.redactError(fmt.Errorf("failed to post http request (telegram): %v", err))
+			lastErr = ts.redactError(fmt.Errorf("failed to post http request (telegram): %w", err))
 		}
 
 		ts.logger.Warning("[%s] Telegram delivery attempt %d failed: %v. Retrying in %v...", ts.tag, i+1, lastErr, backoff)

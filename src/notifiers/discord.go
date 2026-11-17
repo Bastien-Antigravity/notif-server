@@ -7,13 +7,13 @@ Executes HTTP POST requests to Discord with exponential backoff.
 Dispatches operational and delivery messages through the ecosystem Universal Logger.
 
 DATA FLOW:
-1. Receives message payload from the core worker.
-2. Marshals the message into JSON with "content" field.
+1. NewDiscordSender parses and decrypts the webhook URL once at instantiation.
+2. Marshals message into JSON with "content" field.
 3. Posts to the Discord Webhook URL with retry backoff.
 4. Logs dispatch lifecycle and delivery results through Logger.
 
 KEY PARAMETERS:
-- discordUrl: The direct Discord Webhook URL.
+- discordUrl: The decrypted direct Discord Webhook URL.
 - logger: Unified logger instance for operational messages.
 */
 
@@ -35,15 +35,14 @@ type DiscordSender struct {
 	discordUrl string
 	logLevel   string
 	logger     log_interfaces.Logger
-	decrypt    func(string) (string, error)
-	plainURL   string
+	client     *http.Client
 }
 
 // -----------------------------------------------------------------------------
 
 // NewDiscordSender initializes a Discord notification sender.
-// Configuration is optional: if URL is omitted or empty, the provider is considered
-// unconfigured and returns (nil, nil) without failing.
+// Decrypts webhook URL once at instantiation. Returns (nil, nil) if unconfigured,
+// or (nil, error) if decryption fails.
 func NewDiscordSender(discordConf map[string]string, confName string, logger log_interfaces.Logger, decrypt func(string) (string, error)) (*DiscordSender, error) {
 	tag := getOption(discordConf, "TAG", "tag")
 	if tag == "" {
@@ -56,7 +55,16 @@ func NewDiscordSender(discordConf map[string]string, confName string, logger log
 		return nil, nil
 	}
 
-	if !strings.HasPrefix(discordUrl, "ENC(") && !strings.HasPrefix(discordUrl, "http://") && !strings.HasPrefix(discordUrl, "https://") {
+	// Decrypt webhook URL once at instantiation
+	if decrypt != nil {
+		dec, err := decrypt(discordUrl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt discord webhook url: %w", err)
+		}
+		discordUrl = dec
+	}
+
+	if !strings.HasPrefix(discordUrl, "http://") && !strings.HasPrefix(discordUrl, "https://") {
 		logger.Warning("[%s] Discord provider configuration invalid: 'URL' must start with 'http://' or 'https://'", tag)
 		return nil, nil
 	}
@@ -73,7 +81,7 @@ func NewDiscordSender(discordConf map[string]string, confName string, logger log
 		discordUrl: discordUrl,
 		logLevel:   logLevel,
 		logger:     logger,
-		decrypt:    decrypt,
+		client:     &http.Client{Timeout: 15 * time.Second},
 	}, nil
 }
 
@@ -81,16 +89,6 @@ func NewDiscordSender(discordConf map[string]string, confName string, logger log
 
 func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	discordSender.logger.Debug("[%s] Sending notification to Discord...", discordSender.tag)
-
-	// Decrypt webhook URL once and cache in variable for subsequent dispatches
-	if discordSender.plainURL == "" {
-		plainURL, err := discordSender.decrypt(discordSender.discordUrl)
-		if err != nil {
-			discordSender.logger.Error("[%s] Failed to decrypt Discord webhook URL", discordSender.tag)
-			return fmt.Errorf("failed to decrypt discord webhook url: %w", err)
-		}
-		discordSender.plainURL = plainURL
-	}
 
 	jsonByteMessage, err := json.Marshal(map[string]string{"content": msg})
 	if err != nil {
@@ -101,17 +99,16 @@ func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUse
 	maxRetries := 3
 	backoff := 500 * time.Millisecond
 	var lastErr error
-	client := &http.Client{}
 
 	for i := 0; i < maxRetries; i++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", discordSender.plainURL, bytes.NewBuffer(jsonByteMessage))
+		req, err := http.NewRequestWithContext(ctx, "POST", discordSender.discordUrl, bytes.NewBuffer(jsonByteMessage))
 		if err != nil {
 			discordSender.logger.Error("[%s] Failed to create HTTP request (discord): %v", discordSender.tag, err)
 			return fmt.Errorf("failed to create request (discord): %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		httpsResp, err := client.Do(req)
+		httpsResp, err := discordSender.client.Do(req)
 		if err == nil && httpsResp != nil {
 			_, _ = io.Copy(io.Discard, httpsResp.Body)
 			httpsResp.Body.Close()

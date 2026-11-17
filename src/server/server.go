@@ -16,7 +16,8 @@ KEY PARAMETERS:
 */
 
 import (
-	"os"
+	"fmt"
+	"sync"
 	"time"
 
 	notifier "github.com/Bastien-Antigravity/notif-server/src/core"
@@ -36,7 +37,9 @@ type Server struct {
 	Notifier   *notifier.Notifier
 	Controller notifier.NotifController
 	shutdown   chan struct{}
+	stopOnce   sync.Once
 	serverSock socket_interfaces.Socket // Store the listener socket
+	grpcMu     sync.Mutex
 	grpcSrv    *network.GRPCServer
 }
 
@@ -57,10 +60,14 @@ func NewServer(ac *toolbox_config.AppConfig, logger interfaces.Logger, notif *no
 
 // Stop shuts down the server.
 func (s *Server) Stop() {
-	close(s.shutdown)
-	if s.grpcSrv != nil {
-		s.grpcSrv.Stop()
-	}
+	s.stopOnce.Do(func() {
+		close(s.shutdown)
+		s.grpcMu.Lock()
+		if s.grpcSrv != nil {
+			s.grpcSrv.Stop()
+		}
+		s.grpcMu.Unlock()
+	})
 }
 
 // -----------------------------------------------------------------------------
@@ -71,30 +78,27 @@ func (s *Server) Start() error {
 	tcpAddr, err := s.AppConfig.GetListenAddr("notif_server")
 	if err != nil {
 		s.Logger.Error("Failed to resolve bind address: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to resolve bind address: %w", err)
 	}
 
-	// 2. Start gRPC Server in background
-	go func() {
-		// Use toolbox convention for gRPC port
-		grpcAddr, err := s.AppConfig.GetGRPCListenAddr("notif_server")
-		if err != nil {
-			s.Logger.Error("Failed to resolve gRPC address: %v", err)
-			return
-		}
-
-		s.Logger.Info("Notification Server gRPC listening on " + grpcAddr)
+	// 2. Prepare and start gRPC Server if configured (safely guarded before background run)
+	if grpcAddr, err := s.AppConfig.GetGRPCListenAddr("notif_server"); err == nil && grpcAddr != "" {
+		s.grpcMu.Lock()
 		s.grpcSrv = network.NewGRPCServerWithLogger(grpcAddr, s.Logger)
 		proto_msg.RegisterNotifServiceServer(s.grpcSrv.Server, s.Notifier)
-
-		// Register NotifControlServiceServer on the same server
 		controlImpl := grpc_control.NewControlService(s.Controller, s.Logger)
 		grpc_control.RegisterNotifControlServiceServer(s.grpcSrv.Server, controlImpl)
+		s.grpcMu.Unlock()
 
-		if err := s.grpcSrv.Start(); err != nil {
-			s.Logger.Error("gRPC server failed: %v", err)
-		}
-	}()
+		go func() {
+			s.Logger.Info("Notification Server gRPC listening on " + grpcAddr)
+			if err := s.grpcSrv.Start(); err != nil {
+				s.Logger.Error("gRPC server failed: %v", err)
+			}
+		}()
+	} else {
+		s.Logger.Debug("gRPC address not configured for notif_server; skipping gRPC listener: %v", err)
+	}
 
 	// 3. Start TCP Server with 10-minute idle timeout configuration
 	config := factory.SocketConfig{

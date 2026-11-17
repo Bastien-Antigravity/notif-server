@@ -7,13 +7,13 @@ Executes HTTP POST requests to Matrix webhook endpoints with exponential backoff
 Dispatches operational and delivery messages through the ecosystem Universal Logger.
 
 DATA FLOW:
-1. Receives message payload from the core worker.
-2. Marshals the message into JSON with "content" field.
+1. NewMatrixSender parses and decrypts the webhook URL once at instantiation.
+2. Marshals message into JSON with "content" field.
 3. Posts to the Matrix integration URL with retry backoff.
 4. Logs dispatch lifecycle and delivery results through Logger.
 
 KEY PARAMETERS:
-- matrixUrl: The full Matrix webhook or integration URL.
+- matrixUrl: The decrypted full Matrix webhook or integration URL.
 - logger: Unified logger instance for operational messages.
 */
 
@@ -35,15 +35,14 @@ type MatrixSender struct {
 	matrixUrl string
 	logLevel  string
 	logger    log_interfaces.Logger
-	decrypt   func(string) (string, error)
-	plainURL  string
+	client    *http.Client
 }
 
 // -----------------------------------------------------------------------------
 
 // NewMatrixSender initializes a Matrix notification sender.
-// Configuration is optional: if URL is omitted or empty, the provider is considered
-// unconfigured and returns (nil, nil) without failing.
+// Decrypts webhook URL once at instantiation. Returns (nil, nil) if unconfigured,
+// or (nil, error) if decryption fails.
 func NewMatrixSender(matrixConf map[string]string, confName string, logger log_interfaces.Logger, decrypt func(string) (string, error)) (*MatrixSender, error) {
 	if logger == nil {
 		return nil, fmt.Errorf("NewMatrixSender: logger must not be nil")
@@ -60,7 +59,16 @@ func NewMatrixSender(matrixConf map[string]string, confName string, logger log_i
 		return nil, nil
 	}
 
-	if !strings.HasPrefix(matrixUrl, "ENC(") && !strings.HasPrefix(matrixUrl, "http://") && !strings.HasPrefix(matrixUrl, "https://") {
+	// Decrypt webhook URL once at instantiation
+	if decrypt != nil {
+		dec, err := decrypt(matrixUrl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt matrix webhook url: %w", err)
+		}
+		matrixUrl = dec
+	}
+
+	if !strings.HasPrefix(matrixUrl, "http://") && !strings.HasPrefix(matrixUrl, "https://") {
 		logger.Warning("[%s] Matrix provider configuration invalid: 'URL' must start with 'http://' or 'https://'", tag)
 		return nil, nil
 	}
@@ -77,7 +85,7 @@ func NewMatrixSender(matrixConf map[string]string, confName string, logger log_i
 		matrixUrl: matrixUrl,
 		logLevel:  logLevel,
 		logger:    logger,
-		decrypt:   decrypt,
+		client:    &http.Client{Timeout: 15 * time.Second},
 	}, nil
 }
 
@@ -85,16 +93,6 @@ func NewMatrixSender(matrixConf map[string]string, confName string, logger log_i
 
 func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	matrixSender.logger.Debug("[%s] Sending notification to Matrix...", matrixSender.tag)
-
-	// Decrypt webhook URL once and cache in variable for subsequent dispatches
-	if matrixSender.plainURL == "" {
-		plainURL, err := matrixSender.decrypt(matrixSender.matrixUrl)
-		if err != nil {
-			matrixSender.logger.Error("[%s] Failed to decrypt Matrix webhook URL", matrixSender.tag)
-			return fmt.Errorf("failed to decrypt matrix webhook url: %w", err)
-		}
-		matrixSender.plainURL = plainURL
-	}
 
 	jsonByteMessage, err := json.Marshal(map[string]string{"content": msg})
 	if err != nil {
@@ -105,17 +103,16 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 	maxRetries := 3
 	backoff := 500 * time.Millisecond
 	var lastErr error
-	client := &http.Client{}
 
 	for i := 0; i < maxRetries; i++ {
-		req, err := http.NewRequestWithContext(ctx, "POST", matrixSender.plainURL, bytes.NewBuffer(jsonByteMessage))
+		req, err := http.NewRequestWithContext(ctx, "POST", matrixSender.matrixUrl, bytes.NewBuffer(jsonByteMessage))
 		if err != nil {
 			matrixSender.logger.Error("[%s] Failed to create HTTP request (matrix): %v", matrixSender.tag, err)
 			return fmt.Errorf("failed to create request (matrix): %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		httpsResp, err := client.Do(req)
+		httpsResp, err := matrixSender.client.Do(req)
 		if err == nil && httpsResp != nil {
 			_, _ = io.Copy(io.Discard, httpsResp.Body)
 			httpsResp.Body.Close()

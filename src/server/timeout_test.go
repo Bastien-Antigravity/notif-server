@@ -64,7 +64,7 @@ func TestIdleTimeoutFix(t *testing.T) {
 	_ = client.SetIdleTimeout(0)
 
 	found := false
-	for _, l := range ml.CapturedLogs {
+	for _, l := range ml.getLogs() {
 		if strings.Contains(l, "listening on 127.0.0.1:9998") {
 			found = true
 			break

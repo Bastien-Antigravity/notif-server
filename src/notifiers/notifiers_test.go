@@ -20,6 +20,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +34,7 @@ import (
 
 // mockTestLogger captures logs for test assertion
 type mockTestLogger struct {
+	mu        sync.Mutex
 	debugLogs []string
 	infoLogs  []string
 	warnLogs  []string
@@ -37,15 +42,23 @@ type mockTestLogger struct {
 }
 
 func (m *mockTestLogger) Debug(format string, args ...any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.debugLogs = append(m.debugLogs, fmt.Sprintf(format, args...))
 }
 func (m *mockTestLogger) Info(format string, args ...any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.infoLogs = append(m.infoLogs, fmt.Sprintf(format, args...))
 }
 func (m *mockTestLogger) Warning(format string, args ...any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.warnLogs = append(m.warnLogs, fmt.Sprintf(format, args...))
 }
 func (m *mockTestLogger) Error(format string, args ...any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.errorLogs = append(m.errorLogs, fmt.Sprintf(format, args...))
 }
 func (m *mockTestLogger) Critical(format string, args ...any) {}
@@ -395,9 +408,9 @@ func TestTelegramOnDemandDecryption(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 
-	// Verify token remains stored encrypted in memory
-	assert.Equal(t, "ENC(mock_encrypted_token)", sender.token)
-	assert.Equal(t, "ENC(mock_encrypted_chat)", sender.chatId)
+	// Verify credentials are decrypted once at instantiation
+	assert.Equal(t, "decrypted_token", sender.token)
+	assert.Equal(t, "99999", sender.chatId)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -439,8 +452,8 @@ func TestDiscordOnDemandDecryption(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 
-	// Verify raw URL remains stored as ciphertext
-	assert.Equal(t, "ENC(mock_webhook_secret)", sender.discordUrl)
+	// Verify URL is decrypted once at instantiation
+	assert.Equal(t, server.URL, sender.discordUrl)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -488,9 +501,187 @@ func TestTelegramRedactError(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sender)
 
-	sender.plainToken = "my_secret_bot_token_12345"
 	rawErr := fmt.Errorf("Post https://api.telegram.org/botmy_secret_bot_token_12345/sendMessage: dial error")
 	redacted := sender.redactError(rawErr)
 	assert.NotContains(t, redacted.Error(), "my_secret_bot_token_12345")
 	assert.Contains(t, redacted.Error(), "[REDACTED_BOT_TOKEN]")
+}
+
+// -----------------------------------------------------------------------------
+
+func TestConcurrentProviderCredentialCachingRace(t *testing.T) {
+	logger := &mockTestLogger{}
+	mockDecrypter := func(ciphertext string) (string, error) {
+		time.Sleep(1 * time.Millisecond) // Simulate decryption work
+		if strings.HasPrefix(ciphertext, "ENC(") && strings.HasSuffix(ciphertext, ")") {
+			return strings.TrimSuffix(strings.TrimPrefix(ciphertext, "ENC("), ")"), nil
+		}
+		return ciphertext, nil
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok": true, "event_id": "$123"}`))
+	}))
+	defer server.Close()
+
+	// 1. Telegram
+	teleSender, err := NewTelegramSender(map[string]string{
+		"URL":    server.URL,
+		"TOKEN":  "ENC(secret_token)",
+		"CHATID": "ENC(secret_chat)",
+	}, "telegram_race", logger, mockDecrypter)
+	require.NoError(t, err)
+	require.NotNil(t, teleSender)
+
+	// 2. Discord
+	discordSender, err := NewDiscordSender(map[string]string{
+		"URL": "ENC(" + server.URL + ")",
+	}, "discord_race", logger, mockDecrypter)
+	require.NoError(t, err)
+	require.NotNil(t, discordSender)
+
+	// 3. Matrix
+	matrixSender, err := NewMatrixSender(map[string]string{
+		"URL": "ENC(" + server.URL + ")",
+	}, "matrix_race", logger, mockDecrypter)
+	require.NoError(t, err)
+	require.NotNil(t, matrixSender)
+
+	// 4. Gmail
+	gmailSender, err := NewGmailSender(map[string]string{
+		"FROM":   "test@gmail.com",
+		"TO":     "dest@gmail.com",
+		"PASSWD": "ENC(secret_passwd)",
+		"SMTP":   "127.0.0.1",
+		"PORT":   "65534",
+	}, "gmail_race", logger, mockDecrypter)
+	require.NoError(t, err)
+	require.NotNil(t, gmailSender)
+
+	const concurrency = 20
+	var wg sync.WaitGroup
+	wg.Add(concurrency * 4)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	for i := 0; i < concurrency; i++ {
+		go func() {
+			defer wg.Done()
+			_ = teleSender.SendMessage(ctx, "test message", "", "")
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = discordSender.SendMessage(ctx, "test message", "", "")
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = matrixSender.SendMessage(ctx, "test message", "", "")
+		}()
+
+		go func() {
+			defer wg.Done()
+			_ = gmailSender.SendMessage(ctx, "test message", "", "subject")
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify all credentials were decrypted once at instantiation and remain immutable
+	assert.Equal(t, "secret_token", teleSender.token)
+	assert.Equal(t, "secret_chat", teleSender.chatId)
+	assert.Equal(t, server.URL, discordSender.discordUrl)
+	assert.Equal(t, server.URL, matrixSender.matrixUrl)
+	assert.Equal(t, "secret_passwd", gmailSender.passwd)
+}
+
+// -----------------------------------------------------------------------------
+
+func TestGmailSMTPDecryptionFailurePropagates(t *testing.T) {
+	logger := &mockTestLogger{}
+	failingDecrypter := func(ciphertext string) (string, error) {
+		return "", fmt.Errorf("corrupted ciphertext: invalid key")
+	}
+
+	_, err := NewGmailSender(map[string]string{
+		"FROM":   "test@gmail.com",
+		"TO":     "dest@gmail.com",
+		"PASSWD": "ENC(corrupted_data)",
+	}, "gmail_fail", logger, failingDecrypter)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decrypt gmail smtp password")
+	assert.Contains(t, err.Error(), "corrupted ciphertext")
+}
+
+// -----------------------------------------------------------------------------
+
+func TestGmailHeaderCRLFInjectionSanitization(t *testing.T) {
+	logger := &mockTestLogger{}
+	sender, err := NewGmailSender(map[string]string{
+		"FROM":   "test\r\nBcc: evil@attacker.com@gmail.com",
+		"TO":     "dest\r\nBcc: evil@attacker.com@gmail.com",
+		"PASSWD": "mock_password",
+	}, "gmail", logger, nil)
+	require.NoError(t, err)
+
+	payload, err := sender.buildEmail("Alert\r\nInjected-Header: evil\nAnother: bad", "", "Body content")
+	require.NoError(t, err)
+
+	payloadStr := string(payload)
+	// Headers must not contain raw CRLF injections
+	assert.NotContains(t, payloadStr, "Subject: Alert\r\nInjected-Header")
+	assert.Contains(t, payloadStr, "Subject: AlertInjected-Header: evilAnother: bad\r\n")
+	assert.Contains(t, payloadStr, "From: testBcc: evil@attacker.com@gmail.com\r\n")
+}
+
+// -----------------------------------------------------------------------------
+
+func TestGmailAttachmentDirectoryBoundary(t *testing.T) {
+	logger := &mockTestLogger{}
+	tempDir := t.TempDir()
+
+	sender, err := NewGmailSender(map[string]string{
+		"FROM":            "test@gmail.com",
+		"TO":              "dest@gmail.com",
+		"PASSWD":          "mock_password",
+		"ATTACHMENT_ROOT": tempDir,
+	}, "gmail", logger, nil)
+	require.NoError(t, err)
+
+	// 1. Valid file inside tempDir should succeed
+	validFile := filepath.Join(tempDir, "valid_report.txt")
+	err = os.WriteFile(validFile, []byte("report contents"), 0600)
+	require.NoError(t, err)
+
+	payload, err := sender.buildEmail("Subject", validFile, "Body")
+	require.NoError(t, err)
+	assert.Contains(t, string(payload), "valid_report.txt")
+
+	// 2. Relative filename resolved inside tempDir should succeed
+	payloadRel, err := sender.buildEmail("Subject", "valid_report.txt", "Body")
+	require.NoError(t, err)
+	assert.Contains(t, string(payloadRel), "valid_report.txt")
+
+	// 3. File outside tempDir should be rejected with forbidden
+	outsideDir := t.TempDir()
+	outsideFile := filepath.Join(outsideDir, "secret.txt")
+	err = os.WriteFile(outsideFile, []byte("secret"), 0600)
+	require.NoError(t, err)
+
+	_, err = sender.buildEmail("Subject", outsideFile, "Body")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden")
+
+	// 4. Symlink escaping tempDir should be rejected
+	symlinkPath := filepath.Join(tempDir, "symlink_escape.txt")
+	err = os.Symlink(outsideFile, symlinkPath)
+	require.NoError(t, err)
+
+	_, err = sender.buildEmail("Subject", symlinkPath, "Body")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "forbidden")
 }
