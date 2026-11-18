@@ -685,3 +685,27 @@ func TestGmailAttachmentDirectoryBoundary(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "forbidden")
 }
+
+// -----------------------------------------------------------------------------
+
+func TestDiscordAndMatrixRedactWebhookURLFromErrors(t *testing.T) {
+	logger := &mockTestLogger{}
+
+	discordURL := "https://discord.com/api/webhooks/123456/TOP_SECRET_WEBHOOK_TOKEN"
+	discordSender, err := NewDiscordSender(map[string]string{"URL": discordURL}, "discord_sec", logger, nil)
+	require.NoError(t, err)
+	require.NotNil(t, discordSender)
+
+	dRedacted := discordSender.redactError(fmt.Errorf("Post %q: dial tcp timeout", discordURL))
+	assert.NotContains(t, dRedacted.Error(), "TOP_SECRET_WEBHOOK_TOKEN")
+	assert.Contains(t, dRedacted.Error(), "[REDACTED_WEBHOOK_URL]")
+
+	matrixURL := "https://matrix.example.com/_matrix/hook?access_token=MATRIX_SECRET_999"
+	matrixSender, err := NewMatrixSender(map[string]string{"URL": matrixURL}, "matrix_sec", logger, nil)
+	require.NoError(t, err)
+	require.NotNil(t, matrixSender)
+
+	mRedacted := matrixSender.redactError(fmt.Errorf("Post %q: dial tcp timeout", matrixURL))
+	assert.NotContains(t, mRedacted.Error(), "MATRIX_SECRET_999")
+	assert.Contains(t, mRedacted.Error(), "[REDACTED_WEBHOOK_URL]")
+}

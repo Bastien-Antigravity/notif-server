@@ -54,6 +54,7 @@ type NotifierInfo struct {
 type NotifController interface {
 	ListNotifiers() []NotifierInfo
 	SendTestNotification(level, title, message string) error
+	SendTestNotificationToTag(tag, level, title, message string) error
 	ReloadConfig() error
 	GetStatus() (map[string]string, error)
 
@@ -127,6 +128,46 @@ func (c *Controller) SendTestNotification(level, title, message string) error {
 	// Queue to engine channel via Notify
 	if err := c.notifier.Notify(msg); err != nil {
 		c.notifier.Logger.Error("NotifChan buffer full! Dropped test notification message: %s", finalMsg)
+		return err
+	}
+	return nil
+}
+
+// -----------------------------------------------------------------------------
+
+// SendTestNotificationToTag triggers a test notification exclusively targeting a single active provider tag.
+func (c *Controller) SendTestNotificationToTag(tag, level, title, message string) error {
+	targetTag := strings.TrimSpace(tag)
+	if targetTag == "" {
+		return c.SendTestNotification(level, title, message)
+	}
+
+	found := false
+	for _, an := range c.notifier.GetActiveNotifiers() {
+		if an.Name == targetTag {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("provider '%s' is not active or not configured", targetTag)
+	}
+
+	lvl := unilog_utils.GetLogLevel(level)
+	finalMsg := message
+	if title != "" {
+		finalMsg = fmt.Sprintf("[%s] %s", title, message)
+	}
+
+	// Leave Level empty so implicit level routing does not broadcast to unrelated providers
+	msg := &unilog_utils.NotifMessage{
+		Level:   "",
+		Message: fmt.Sprintf("[%s] %s", lvl.String(), finalMsg),
+		Tags:    []string{targetTag},
+	}
+
+	if err := c.notifier.Notify(msg); err != nil {
+		c.notifier.Logger.Error("NotifChan buffer full! Dropped targeted test notification for '%s'", targetTag)
 		return err
 	}
 	return nil
@@ -244,6 +285,7 @@ func (c *Controller) AddProvider(tag, platType string) error {
 		template["PASSWD"] = ""
 		template["SMTP_HOST"] = "smtp.gmail.com"
 		template["SMTP_PORT"] = "587"
+		template["ATTACHMENT_DIR"] = ""
 	}
 
 	newConf[tag] = template

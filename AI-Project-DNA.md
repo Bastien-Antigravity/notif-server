@@ -16,12 +16,12 @@ tags:
 
 ## 🎯 High-Level Intent (BDD)
 - **Goal**: Centralized notification gateway for the microservice fleet.
-- **Key Pattern**: **Aggregator / Worker-Pool Dispatch**.
+- **Key Pattern**: **Aggregator / Isolated Sequential Dispatch** (1 worker & cap-100 queue per provider).
 
 ## 🛠 Technical Constraints
 - **Language**: Go
-- **Ingress Protocols**: gRPC (Protobuf), TCP (Cap'n Proto).
-- **Hardening**: Non-blocking worker pools per platform; 10m IdleTimeout; ReadMessage framing.
+- **Ingress Protocols**: gRPC (Protobuf), TCP (Cap'n Proto), HTTP REST & OpenMFE.
+- **Hardening**: Isolated sequential worker per provider; 10m IdleTimeout; ReadMessage framing; instantiation-time credential decryption (immutable senders); zero-loss live hot-reload & idempotent draining `Stop()`; deny-by-default secret masking & `src/sanitizer` scrubbing; `os.OpenRoot` Gmail attachment confinement.
 - **Architecture & Service Standard**: Adheres to [`./AGENTS.md`](AGENTS.md), workspace root [`../AGENTS.md`](../AGENTS.md), and `../obsidian-brain/03-Tech-Stack/02-Project-Architecture/Global-Architecture-Rules.md`.
 
 ## 👥 Roles & Responsibilities

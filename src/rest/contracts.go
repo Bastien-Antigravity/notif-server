@@ -21,12 +21,13 @@ import (
 	"net/http"
 	"strings"
 
-	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
-	toolbox_spec "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/spec"
 	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/grpc_control"
 	capnp_notifier "github.com/Bastien-Antigravity/notif-server/src/schemas/capnp"
 	notif_proto "github.com/Bastien-Antigravity/notif-server/src/schemas/protobuf"
+
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
+	toolbox_spec "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/spec"
 )
 
 // -----------------------------------------------------------------------------
@@ -117,7 +118,7 @@ func BuildExchangeContracts(
 			Operations: []toolbox_spec.ContractOperation{
 				{Name: "Status", Kind: "GET", Target: "/api/v1/status", Output: "{ healthy, status, version, timestamp, details }", Description: "Live server status & worker health summary"},
 				{Name: "ListNotifiers", Kind: "GET", Target: "/api/v1/notifiers/list", Output: "{ success, notifiers[], timestamp }", Description: "Lists configured alerting senders and health"},
-				{Name: "SendTest", Kind: "POST", Target: "/api/v1/notif/test", Input: "{ level, title, message }", Output: "ControlResponse JSON", Description: "Dispatches test alert across routed providers"},
+				{Name: "SendTest", Kind: "POST", Target: "/api/v1/notif/test", Input: "{ level, title, message, tag? }", Output: "ControlResponse JSON", Description: "Dispatches test alert across all active providers or exclusively to a single target tag"},
 				{Name: "ReloadConfig", Kind: "POST", Target: "/api/v1/config/reload", Output: "ControlResponse JSON", Description: "Reloads alerting configuration & reinitializes senders"},
 				{Name: "GetAlertingConfig", Kind: "GET", Target: "/api/v1/config/alerting/get", Output: "{ success, config, timestamp }", Description: "Returns provider config with masked secrets"},
 				{Name: "SetAlertingConfig", Kind: "POST", Target: "/api/v1/config/alerting/set", Input: "{ platform, key, value }", Output: "ControlResponse JSON", Description: "Updates a provider setting dynamically"},
@@ -132,7 +133,7 @@ func BuildExchangeContracts(
 				"GET  /api/v1/status",
 				"GET  /api/v1/contracts",
 				"GET  /api/v1/notifiers/list",
-				"POST /api/v1/notif/test            body: {\"level\", \"title\", \"message\"}",
+				"POST /api/v1/notif/test            body: {\"level\", \"title\", \"message\", \"tag?\"}",
 				"POST /api/v1/config/reload",
 				"GET  /api/v1/config/alerting/get",
 				"POST /api/v1/config/alerting/set     body: {\"platform\", \"key\", \"value\"}",

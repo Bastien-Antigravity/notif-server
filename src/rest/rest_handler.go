@@ -27,9 +27,10 @@ import (
 	"sync"
 	"time"
 
-	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
 	"github.com/Bastien-Antigravity/notif-server/src/grpc_control"
+
+	toolbox_config "github.com/Bastien-Antigravity/microservice-toolbox/go/pkg/config"
 	unilog_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
@@ -41,11 +42,12 @@ var mfeJS string
 // -----------------------------------------------------------------------------
 
 type RESTHandler struct {
-	logger    unilog_interfaces.Logger
-	control   *grpc_control.ControlServiceImpl
-	appConfig *toolbox_config.AppConfig
-	server    *http.Server
-	mu        sync.Mutex
+	logger     unilog_interfaces.Logger
+	controller notif_core.NotifController
+	control    *grpc_control.ControlServiceImpl
+	appConfig  *toolbox_config.AppConfig
+	server     *http.Server
+	mu         sync.Mutex
 }
 
 // -----------------------------------------------------------------------------
@@ -53,8 +55,9 @@ type RESTHandler struct {
 // NewRESTHandler creates a new RESTHandler instance
 func NewRESTHandler(controller notif_core.NotifController, logger unilog_interfaces.Logger) *RESTHandler {
 	return &RESTHandler{
-		logger:  logger,
-		control: grpc_control.NewControlService(controller, logger),
+		logger:     logger,
+		controller: controller,
+		control:    grpc_control.NewControlService(controller, logger),
 	}
 }
 
@@ -100,13 +103,40 @@ func (h *RESTHandler) handleSendTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req grpc_control.SendTestNotificationRequest
+	var req struct {
+		Level   string `json:"level"`
+		Title   string `json:"title"`
+		Message string `json:"message"`
+		Tag     string `json:"tag"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	resp, _ := h.control.SendTestNotification(r.Context(), &req)
+	if strings.TrimSpace(req.Tag) != "" && h.controller != nil {
+		if err := h.controller.SendTestNotificationToTag(req.Tag, req.Level, req.Title, req.Message); err != nil {
+			h.sendJSON(w, &grpc_control.ControlResponse{
+				Success:   false,
+				Message:   fmt.Sprintf("Failed to send targeted test notification: %v", err),
+				Timestamp: time.Now().Unix(),
+				ErrorCode: "SEND_FAILED",
+			})
+			return
+		}
+		h.sendJSON(w, &grpc_control.ControlResponse{
+			Success:   true,
+			Message:   fmt.Sprintf("Test notification queued exclusively for '%s'", req.Tag),
+			Timestamp: time.Now().Unix(),
+		})
+		return
+	}
+
+	resp, _ := h.control.SendTestNotification(r.Context(), &grpc_control.SendTestNotificationRequest{
+		Level:   req.Level,
+		Title:   req.Title,
+		Message: req.Message,
+	})
 	h.sendJSON(w, resp)
 }
 

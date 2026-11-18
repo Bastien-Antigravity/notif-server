@@ -21,6 +21,8 @@ import (
 	"time"
 
 	notif_core "github.com/Bastien-Antigravity/notif-server/src/core"
+	"github.com/Bastien-Antigravity/notif-server/src/sanitizer"
+
 	unilog_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
@@ -151,7 +153,10 @@ func (s *ControlServiceImpl) GetStatus(ctx context.Context, req *GetStatusReques
 	}, nil
 }
 
-// GetAlertingConfig returns the entire configuration state as a map of sections
+// -----------------------------------------------------------------------------
+
+// GetAlertingConfig returns the entire configuration state as a map of sections.
+// Uses a deny-by-default allowlist (sanitizer.IsPublicField): anything not explicitly public is masked.
 func (s *ControlServiceImpl) GetAlertingConfig(ctx context.Context, req *GetAlertingConfigRequest) (*GetAlertingConfigResponse, error) {
 	s.logger.Debug("%s : received GetAlertingConfig request", s.Name)
 
@@ -159,12 +164,19 @@ func (s *ControlServiceImpl) GetAlertingConfig(ctx context.Context, req *GetAler
 	responseConfig := make(map[string]*AlertingConfigSection)
 
 	for platform, settings := range config {
+		platType := settings["TYPE"]
+		if platType == "" {
+			platType = settings["type"]
+		}
+		if platType == "" {
+			platType = platform
+		}
+
 		maskedSettings := make(map[string]string, len(settings))
 		for k, v := range settings {
-			upperK := strings.ToUpper(k)
-			if strings.Contains(upperK, "PASS") || strings.Contains(upperK, "TOKEN") || strings.Contains(upperK, "SECRET") || strings.Contains(upperK, "KEY") {
+			if !sanitizer.IsPublicField(platType, k, v) {
 				if v != "" {
-					maskedSettings[k] = "********"
+					maskedSettings[k] = sanitizer.MaskedPlaceholder
 				} else {
 					maskedSettings[k] = ""
 				}
@@ -186,7 +198,32 @@ func (s *ControlServiceImpl) GetAlertingConfig(ctx context.Context, req *GetAler
 
 // SetAlertingConfig updates a specific setting for a notification platform
 func (s *ControlServiceImpl) SetAlertingConfig(ctx context.Context, req *SetAlertingConfigRequest) (*ControlResponse, error) {
-	s.logger.Info("%s : received SetAlertingConfig request for [%s] %s = %s", s.Name, req.Platform, req.Key, req.Value)
+	platType := req.Platform
+	if cfg := s.controller.GetAlertingConfig(); cfg != nil {
+		if sec, ok := cfg[req.Platform]; ok {
+			if t := sec["TYPE"]; t != "" {
+				platType = t
+			} else if t := sec["type"]; t != "" {
+				platType = t
+			}
+		}
+	}
+
+	isSecret := !sanitizer.IsPublicField(platType, req.Key, req.Value)
+	loggedVal := req.Value
+	if isSecret {
+		loggedVal = sanitizer.MaskedPlaceholder
+	}
+	s.logger.Info("%s : received SetAlertingConfig request for [%s] %s = %s", s.Name, req.Platform, req.Key, loggedVal)
+
+	if isSecret && strings.TrimSpace(req.Value) == sanitizer.MaskedPlaceholder {
+		return &ControlResponse{
+			Success:   false,
+			Message:   "Cannot overwrite a secret field with the masked placeholder",
+			Timestamp: time.Now().Unix(),
+			ErrorCode: "MASKED_VALUE_REJECTED",
+		}, nil
+	}
 
 	err := s.controller.SetAlertingConfig(req.Platform, req.Key, req.Value)
 	if err != nil {

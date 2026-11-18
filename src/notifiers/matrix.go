@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Bastien-Antigravity/notif-server/src/sanitizer"
+
 	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
@@ -91,6 +93,20 @@ func NewMatrixSender(matrixConf map[string]string, confName string, logger log_i
 
 // -----------------------------------------------------------------------------
 
+// redactError strips the webhook URL and any other secrets from transport errors via the standard sanitizer.
+func (matrixSender *MatrixSender) redactError(err error) error {
+	if err == nil {
+		return nil
+	}
+	errStr := err.Error()
+	if matrixSender.matrixUrl != "" {
+		errStr = strings.ReplaceAll(errStr, matrixSender.matrixUrl, "[REDACTED_WEBHOOK_URL]")
+	}
+	return fmt.Errorf("%s", sanitizer.RedactSecrets(errStr))
+}
+
+// -----------------------------------------------------------------------------
+
 func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	matrixSender.logger.Debug("[%s] Sending notification to Matrix...", matrixSender.tag)
 
@@ -107,8 +123,9 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 	for i := 0; i < maxRetries; i++ {
 		req, err := http.NewRequestWithContext(ctx, "POST", matrixSender.matrixUrl, bytes.NewBuffer(jsonByteMessage))
 		if err != nil {
-			matrixSender.logger.Error("[%s] Failed to create HTTP request (matrix): %v", matrixSender.tag, err)
-			return fmt.Errorf("failed to create request (matrix): %w", err)
+			safeErr := matrixSender.redactError(err)
+			matrixSender.logger.Error("[%s] Failed to create HTTP request (matrix): %v", matrixSender.tag, safeErr)
+			return fmt.Errorf("failed to create request (matrix): %w", safeErr)
 		}
 		req.Header.Set("Content-Type", "application/json")
 
@@ -131,7 +148,7 @@ func (matrixSender *MatrixSender) SendMessage(ctx context.Context, msg, notUsed,
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			lastErr = fmt.Errorf("failed to post http request (matrix): %v", err)
+			lastErr = matrixSender.redactError(fmt.Errorf("failed to post http request (matrix): %w", err))
 		}
 
 		matrixSender.logger.Warning("[%s] Matrix delivery attempt %d failed: %v. Retrying in %v...", matrixSender.tag, i+1, lastErr, backoff)

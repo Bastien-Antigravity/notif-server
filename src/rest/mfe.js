@@ -64,6 +64,8 @@ class NotifServerMFE extends BaseElementClass {
         this.notifiersList = [];
         this.alertingConfig = {};
         this.supportedTypes = [];
+        this.toastTimestamps = [];
+        this.toastsMutedUntil = 0;
     }
 
     render() {
@@ -85,6 +87,9 @@ class NotifServerMFE extends BaseElementClass {
                         </button>
                     </div>
                 </div>
+
+                <!-- Non-blocking Inline Toast Host -->
+                <div id="mfe-toast-host" style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;"></div>
                 
                 <!-- Status Row -->
                 <div class="openmfe-kpi-grid">
@@ -133,12 +138,19 @@ class NotifServerMFE extends BaseElementClass {
                             </div>
                             <div class="openmfe-card__body">
                                 <form id="mfe-test-notif-form" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+                                    <div class="openmfe-form-group" style="flex:1; min-width:160px; margin-bottom:0;">
+                                        <label class="openmfe-form-label">Target Provider</label>
+                                        <select id="test-target" class="openmfe-form-select">
+                                            <option value="">All Active Providers</option>
+                                        </select>
+                                    </div>
                                     <div class="openmfe-form-group" style="flex:1; min-width:120px; margin-bottom:0;">
                                         <label class="openmfe-form-label">Level</label>
                                         <select id="test-level" class="openmfe-form-select">
-                                            <option value="INFO">INFO</option>
-                                            <option value="WARNING">WARNING</option>
+                                            <option value="CRITICAL">CRITICAL</option>
                                             <option value="ERROR">ERROR</option>
+                                            <option value="WARNING">WARNING</option>
+                                            <option value="INFO" selected>INFO</option>
                                             <option value="DEBUG">DEBUG</option>
                                         </select>
                                     </div>
@@ -216,12 +228,17 @@ class NotifServerMFE extends BaseElementClass {
                         <div class="openmfe-modal-body">
                             <input type="hidden" id="edit-platform">
                             <input type="hidden" id="edit-key">
+                            <input type="hidden" id="edit-is-secret" value="false">
                             <div style="margin-bottom: 12px; font-size: 0.8125rem; color: var(--color-text-muted, #94a3b8);">
                                 <strong>Target Parameter:</strong> <span id="edit-identifier" style="font-family:var(--font-mono, monospace); color:var(--color-accent-primary, #38bdf8);">provider -> key</span>
                             </div>
-                            <div class="openmfe-form-group">
+                            <div class="openmfe-form-group" id="edit-plain-group">
                                 <label class="openmfe-form-label">Value</label>
-                                <textarea id="edit-value" class="openmfe-form-input" required rows="4"></textarea>
+                                <textarea id="edit-value" class="openmfe-form-input" rows="4"></textarea>
+                            </div>
+                            <div class="openmfe-form-group" id="edit-secret-group" style="display:none;">
+                                <label class="openmfe-form-label"><i class="fa fa-lock"></i> New Secret Value (write-only — never shared with browser)</label>
+                                <input type="password" id="edit-secret-value" class="openmfe-form-input" autocomplete="new-password" placeholder="Enter new secret value (leave blank to cancel)...">
                             </div>
                         </div>
                         <div class="openmfe-modal-footer">
@@ -251,12 +268,18 @@ class NotifServerMFE extends BaseElementClass {
             editForm: this.querySelector('#mfe-edit-form'),
             editPlatform: this.querySelector('#edit-platform'),
             editKey: this.querySelector('#edit-key'),
+            editIsSecret: this.querySelector('#edit-is-secret'),
+            editPlainGroup: this.querySelector('#edit-plain-group'),
+            editSecretGroup: this.querySelector('#edit-secret-group'),
             editValue: this.querySelector('#edit-value'),
+            editSecretValue: this.querySelector('#edit-secret-value'),
             editIdentifier: this.querySelector('#edit-identifier'),
             testForm: this.querySelector('#mfe-test-notif-form'),
+            testTarget: this.querySelector('#test-target'),
             testLevel: this.querySelector('#test-level'),
             testTitle: this.querySelector('#test-title'),
             testMessage: this.querySelector('#test-message'),
+            toastHost: this.querySelector('#mfe-toast-host'),
             addTypeSelect: this.querySelector('#add-type'),
             addTagInput: this.querySelector('#add-tag'),
             tabsBar: this.querySelector('#notif-tabs-bar'),
@@ -295,7 +318,8 @@ class NotifServerMFE extends BaseElementClass {
             this.sendTestNotification(
                 this.dom.testLevel?.value,
                 this.dom.testTitle?.value,
-                this.dom.testMessage?.value
+                this.dom.testMessage?.value,
+                this.dom.testTarget?.value || ''
             );
         });
 
@@ -310,11 +334,18 @@ class NotifServerMFE extends BaseElementClass {
 
         this.dom.editForm?.addEventListener('submit', (e) => {
             e.preventDefault();
+            const isSecret = this.dom.editIsSecret?.value === 'true';
+            const newValue = isSecret ? (this.dom.editSecretValue?.value || '') : (this.dom.editValue?.value || '');
+            if (isSecret && (!newValue.trim() || newValue.trim() === '********')) {
+                this.dom.editModal?.classList.remove('show');
+                return;
+            }
             this.submitEditConfig(
                 this.dom.editPlatform?.value,
                 this.dom.editKey?.value,
-                this.dom.editValue?.value
+                newValue
             );
+            if (this.dom.editSecretValue) this.dom.editSecretValue.value = '';
             this.dom.editModal?.classList.remove('show');
         });
     }
@@ -322,7 +353,7 @@ class NotifServerMFE extends BaseElementClass {
     async onMount() {
         this.activeTab = this.activeTab || 'operations';
         await this.loadAll();
-        this.registerPoll(() => this.loadStatus(), 5000, false);
+        this.registerPoll(() => Promise.all([this.loadStatus(), this.loadNotifiers()]), 5000, false);
     }
 
     async loadAll() {
@@ -369,7 +400,7 @@ class NotifServerMFE extends BaseElementClass {
 
     displayStatus() {
         const isOnline = this.statusData.healthy;
-        const statusLabel = isOnline ? 'Operational' : ` ${this.statusData.status || 'Offline'}`;
+        const statusLabel = isOnline ? (this.statusData.status || 'Operational') : (this.statusData.status || 'Offline');
         const dotClass = `openmfe-dot ${isOnline ? 'openmfe-dot--active' : 'openmfe-dot--inactive'}`;
 
         if (this.dom.statusDot) this.dom.statusDot.className = dotClass;
@@ -378,14 +409,24 @@ class NotifServerMFE extends BaseElementClass {
         if (this.dom.statusTextInner) this.dom.statusTextInner.innerText = statusLabel;
 
         const date = this.statusData.timestamp ? new Date(this.statusData.timestamp * 1000).toLocaleString() : '—';
-        const activeCount = this.statusData.details ? (this.statusData.details.active_notifiers || '0') : '0';
+        const d = this.statusData.details || {};
+        const activeCount = d.active_notifiers || '0';
+        const healthyCount = d.healthy_notifiers || activeCount;
+        const degradedCount = d.degraded_notifiers || '0';
+        const delivered = d.total_delivered || '0';
+        const failed = d.total_failed || '0';
+        const dropped = d.total_dropped || '0';
+        const ingDepth = d.ingestion_queue_depth || '0';
+
         if (this.dom.statusDetails) {
             this.dom.statusDetails.innerHTML = `
                 <div><strong>Version:</strong> ${this.escapeHTML(this.statusData.version || 'N/A')}</div>
-                <div><strong>Active Notifiers:</strong> ${this.escapeHTML(activeCount)}</div>
-                <div><strong>Last Check:</strong> ${date}</div>
+                <div><strong>Workers:</strong> ${this.escapeHTML(activeCount)} active (${this.escapeHTML(healthyCount)} healthy / ${this.escapeHTML(degradedCount)} degraded)</div>
+                <div><strong>Delivery:</strong> ${this.escapeHTML(delivered)} delivered &middot; ${this.escapeHTML(failed)} failed &middot; ${this.escapeHTML(dropped)} dropped</div>
+                <div><strong>Ingestion Queue:</strong> ${this.escapeHTML(ingDepth)} pending &middot; <strong>Last Check:</strong> ${date}</div>
             `;
         }
+        this.displayNotifiers();
     }
 
     async loadNotifiers() {
@@ -409,13 +450,78 @@ class NotifServerMFE extends BaseElementClass {
 
     displayNotifiers() {
         if (!this.dom.sendersContainer) return;
+        const details = this.statusData.details || {};
         if (this.notifiersList.length > 0) {
-            this.dom.sendersContainer.innerHTML = this.notifiersList.map(n => `
-                <span class="openmfe-badge openmfe-badge--success"><i class="fa fa-check-circle"></i> ${this.escapeHTML(n.name)} <span style="opacity:0.7; font-size:0.7rem;">(${this.escapeHTML(n.type)})</span></span>
-            `).join('');
+            this.dom.sendersContainer.innerHTML = this.notifiersList.map(n => {
+                const state = details[`provider_${n.name}_state`] || (n.healthy ? 'Operational' : 'Degraded');
+                const qDepth = details[`provider_${n.name}_queue_depth`] || '0';
+                const lastErr = details[`provider_${n.name}_last_error`] || '';
+                let badgeClass = 'openmfe-badge--success';
+                let iconClass = 'fa-check-circle';
+                if (state === 'Unavailable' || state === 'Stopped') {
+                    badgeClass = 'openmfe-badge--danger';
+                    iconClass = 'fa-times-circle';
+                } else if (!n.healthy || state === 'Degraded') {
+                    badgeClass = 'openmfe-badge--warning';
+                    iconClass = 'fa-exclamation-triangle';
+                }
+                const tooltip = lastErr ? `State: ${state} | Queue: ${qDepth} | Last Error: ${lastErr}` : `State: ${state} | Queue: ${qDepth}`;
+                return `
+                    <span class="openmfe-badge ${badgeClass}" title="${this.escapeAttribute(tooltip)}">
+                        <i class="fa ${iconClass}"></i> ${this.escapeHTML(n.name)}
+                        <span style="opacity:0.75; font-size:0.7rem;">(${this.escapeHTML(state)} &middot; Q:${this.escapeHTML(qDepth)})</span>
+                    </span>
+                `;
+            }).join('');
         } else {
             this.dom.sendersContainer.innerHTML = `<p style="color:var(--color-text-muted, #94a3b8); font-size:0.8125rem; margin:0;">No active dispatch workers registered in background pool.</p>`;
         }
+
+        // Keep Target Provider dropdown in Test Delivery Sandbox synchronized with active workers
+        if (this.dom.testTarget) {
+            const current = this.dom.testTarget.value;
+            this.dom.testTarget.innerHTML = '<option value="">All Active Providers</option>' +
+                this.notifiersList.map(n => `<option value="${this.escapeAttribute(n.name)}">${this.escapeHTML(n.name)}</option>`).join('');
+            if (current && this.notifiersList.some(n => n.name === current)) {
+                this.dom.testTarget.value = current;
+            }
+        }
+    }
+
+    showToast(message, variant = 'info') {
+        if (!this.dom.toastHost) return;
+
+        const now = Date.now();
+        // Auto-suppress non-error toasts during high-rate bursts (>5 toasts in 10s -> 15s cooldown)
+        this.toastTimestamps = (this.toastTimestamps || []).filter(ts => now - ts < 10000);
+        if (now < (this.toastsMutedUntil || 0) && variant !== 'error') {
+            return;
+        }
+        this.toastTimestamps.push(now);
+        if (this.toastTimestamps.length > 5 && variant !== 'error') {
+            this.toastsMutedUntil = now + 15000;
+            this.toastTimestamps = [];
+            message = 'High toast rate detected — non-error toasts auto-paused for 15s.';
+            variant = 'info';
+        }
+
+        // Cap visible toasts at 3 to avoid vertical UI clutter
+        while (this.dom.toastHost.children.length >= 3) {
+            this.dom.toastHost.firstElementChild?.remove();
+        }
+
+        const colors = {
+            success: { bg: 'rgba(34,197,94,0.16)', border: 'rgba(34,197,94,0.4)', text: '#86efac', icon: 'fa-check-circle' },
+            error: { bg: 'rgba(244,63,94,0.16)', border: 'rgba(244,63,94,0.4)', text: '#fda4af', icon: 'fa-exclamation-circle' },
+            info: { bg: 'rgba(56,189,248,0.16)', border: 'rgba(56,189,248,0.4)', text: '#7dd3fc', icon: 'fa-info-circle' }
+        };
+        const style = colors[variant] || colors.info;
+        const toast = document.createElement('div');
+        toast.style.cssText = `display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-radius:6px; font-size:0.8125rem; background:${style.bg}; border:1px solid ${style.border}; color:${style.text};`;
+        toast.innerHTML = `<span><i class="fa ${style.icon}" style="margin-right:6px;"></i>${this.escapeHTML(message)}</span><button type="button" style="background:none; border:none; color:inherit; cursor:pointer; font-size:1rem;">&times;</button>`;
+        toast.querySelector('button')?.addEventListener('click', () => toast.remove());
+        this.dom.toastHost.appendChild(toast);
+        setTimeout(() => { if (toast.parentNode) toast.remove(); }, 5000);
     }
 
     async loadSupportedTypes() {
@@ -482,6 +588,27 @@ class NotifServerMFE extends BaseElementClass {
         return this.escapeHTML(value);
     }
 
+    isSecretKey(platformType, key, value) {
+        // Deny-by-default allowlist mirroring src/sanitizer/sanitizer.go
+        const publicFields = {
+            TELEGRAM: new Set(['TYPE', 'TAG', 'LOGLEVEL', 'URL', 'CHATID', 'CHAT_ID']),
+            DISCORD: new Set(['TYPE', 'TAG', 'LOGLEVEL']),
+            MATRIX: new Set(['TYPE', 'TAG', 'LOGLEVEL']),
+            GMAIL: new Set(['TYPE', 'TAG', 'LOGLEVEL', 'FROM', 'TO', 'SMTP_HOST', 'SMTP_PORT', 'HOST', 'PORT', 'ATTACHMENT_DIR'])
+        };
+        const strVal = this.stringifyValue(value).trim();
+        if (strVal === '********' || strVal.startsWith('ENC(') || strVal.includes('/api/webhooks/')) {
+            return true;
+        }
+        const upperType = this.stringifyValue(platformType).toUpperCase().trim();
+        const upperKey = this.stringifyValue(key).toUpperCase().trim();
+        const allowed = publicFields[upperType];
+        if (!allowed) {
+            return !(upperKey === 'TYPE' || upperKey === 'TAG' || upperKey === 'LOGLEVEL');
+        }
+        return !allowed.has(upperKey);
+    }
+
     displayAlertingConfig() {
         if (!this.dom.accordionList) return;
         this.dom.accordionList.innerHTML = '';
@@ -496,6 +623,8 @@ class NotifServerMFE extends BaseElementClass {
             return;
         }
 
+        const statusDetails = this.statusData.details || {};
+
         sections.forEach((section, index) => {
             const secData = this.alertingConfig[section] || {};
             const settings = secData.settings || {};
@@ -505,14 +634,24 @@ class NotifServerMFE extends BaseElementClass {
             const keys = Object.keys(settings);
             const contentId = `mfe-collapse-${index}`;
             const sectionLabel = this.escapeHTML(section);
-            const typeLabel = this.escapeHTML(settings['TYPE'] || 'UNKNOWN');
+            const rawType = settings['TYPE'] || settings['type'] || 'UNKNOWN';
+            const typeLabel = this.escapeHTML(rawType);
+            const provState = statusDetails[`provider_${section}_state`] || '';
+            const provErr = statusDetails[`provider_${section}_last_error`] || '';
+            const stateBadge = provState
+                ? `<span style="font-size:0.7rem; padding:2px 8px; border-radius:10px; margin-left:6px; background:${provState === 'Operational' || provState === 'Initialized' ? 'rgba(34,197,94,0.18); color:#4ade80;' : provState === 'Degraded' ? 'rgba(245,158,11,0.18); color:#fbbf24;' : 'rgba(244,63,94,0.18); color:#fb7185;'}">${this.escapeHTML(provState)}</span>`
+                : '';
+            const errorBanner = provErr
+                ? `<div style="padding:8px 16px; background:rgba(244,63,94,0.12); color:#fda4af; font-size:0.8rem; border-bottom:1px solid rgba(244,63,94,0.2);"><i class="fa fa-exclamation-circle"></i> <strong>Last Error:</strong> ${this.escapeHTML(provErr)}</div>`
+                : '';
 
             sectionDiv.innerHTML = `
                 <div class="mfe-section-header" data-target="${contentId}" style="background:var(--color-bg-overlay, rgba(15,23,42,0.3)); color:var(--color-text-primary, #f8fafc); padding:12px 16px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; font-weight:600; font-size:0.875rem;">
-                    <span><i class="fa fa-folder-open-o" style="color:var(--color-accent-primary, #38bdf8); margin-right:8px;"></i> <strong>${sectionLabel}</strong> <span style="font-size:0.75rem; background:rgba(255,255,255,0.08); color:var(--color-accent-primary, #38bdf8); padding:2px 8px; border-radius:10px; margin-left:8px;">${typeLabel}</span></span>
+                    <span><i class="fa fa-folder-open-o" style="color:var(--color-accent-primary, #38bdf8); margin-right:8px;"></i> <strong>${sectionLabel}</strong> <span style="font-size:0.75rem; background:rgba(255,255,255,0.08); color:var(--color-accent-primary, #38bdf8); padding:2px 8px; border-radius:10px; margin-left:8px;">${typeLabel}</span>${stateBadge}</span>
                     <i class="fa fa-chevron-down" style="color:var(--color-text-muted, #94a3b8); font-size:0.75rem; transition:transform 0.2s;"></i>
                 </div>
                 <div class="mfe-section-content" id="${contentId}" style="display:block;">
+                    ${errorBanner}
                     <div style="overflow-x:auto;">
                         <table class="openmfe-table">
                             <thead>
@@ -525,15 +664,20 @@ class NotifServerMFE extends BaseElementClass {
                             <tbody>
                                 ${keys.map(key => {
                                     const value = this.stringifyValue(settings[key]);
+                                    const secret = this.isSecretKey(rawType, key, value);
+                                    const displayHtml = secret
+                                        ? (value ? `<span style="color:var(--color-text-muted, #94a3b8);"><i class="fa fa-lock"></i> ******** <em>(write-only)</em></span>` : `<span style="color:var(--color-text-muted, #94a3b8); opacity:0.7;"><em>(not set)</em></span>`)
+                                        : this.escapeHTML(value);
+                                    const safeDataVal = secret ? '' : this.escapeAttribute(value);
                                     return `
                                     <tr>
                                         <td style="font-family:var(--font-mono, monospace); font-weight:600; color:var(--color-text-primary, #f8fafc);">${this.escapeHTML(key)}</td>
                                         <td>
-                                            <div class="mfe-editable" data-platform="${this.escapeAttribute(section)}" data-key="${this.escapeAttribute(key)}" style="cursor:pointer; padding:4px 8px; border-radius:4px; font-family:var(--font-mono, monospace); background:rgba(15,23,42,0.4); border:1px solid var(--color-border-subtle, rgba(255,255,255,0.06)); word-break:break-all;">${this.escapeHTML(value)}</div>
+                                            <div class="mfe-editable" data-platform="${this.escapeAttribute(section)}" data-key="${this.escapeAttribute(key)}" data-secret="${secret ? 'true' : 'false'}" data-val="${safeDataVal}" style="cursor:pointer; padding:4px 8px; border-radius:4px; font-family:var(--font-mono, monospace); background:rgba(15,23,42,0.4); border:1px solid var(--color-border-subtle, rgba(255,255,255,0.06)); word-break:break-all;">${displayHtml}</div>
                                         </td>
                                         <td style="text-align:right;">
-                                            <button class="openmfe-btn openmfe-btn--sm openmfe-btn--outline mfe-edit-btn" data-platform="${this.escapeAttribute(section)}" data-key="${this.escapeAttribute(key)}" data-val="${this.escapeAttribute(value)}" title="Edit setting">
-                                                <i class="fa fa-pencil"></i>
+                                            <button class="openmfe-btn openmfe-btn--sm openmfe-btn--outline mfe-edit-btn" data-platform="${this.escapeAttribute(section)}" data-key="${this.escapeAttribute(key)}" data-secret="${secret ? 'true' : 'false'}" data-val="${safeDataVal}" title="${secret ? 'Update secret (write-only)' : 'Edit setting'}">
+                                                <i class="fa ${secret ? 'fa-key' : 'fa-pencil'}"></i>
                                             </button>
                                         </td>
                                     </tr>
@@ -541,7 +685,10 @@ class NotifServerMFE extends BaseElementClass {
                                 }).join('')}
                             </tbody>
                         </table>
-                        <div style="padding: 10px 16px; text-align: right; background: var(--color-bg-overlay, rgba(15,23,42,0.4)); border-top: 1px solid var(--color-border-subtle, rgba(255,255,255,0.06));">
+                        <div style="padding: 10px 16px; display:flex; justify-content:flex-end; gap:8px; background: var(--color-bg-overlay, rgba(15,23,42,0.4)); border-top: 1px solid var(--color-border-subtle, rgba(255,255,255,0.06));">
+                            <button class="openmfe-btn openmfe-btn--sm openmfe-btn--outline mfe-test-provider-btn" data-platform="${this.escapeAttribute(section)}" title="Send a targeted test alert to this provider only">
+                                <i class="fa fa-paper-plane"></i> Test Provider
+                            </button>
                             <button class="openmfe-btn openmfe-btn--sm openmfe-btn--danger mfe-delete-provider-btn" data-platform="${this.escapeAttribute(section)}">
                                 <i class="fa fa-trash"></i> Delete Provider
                             </button>
@@ -570,20 +717,37 @@ class NotifServerMFE extends BaseElementClass {
         });
 
         // Bind inline edit clicks and pencil buttons
-        const triggerEdit = (platform, key, val) => {
+        const triggerEdit = (platform, key, val, isSecret) => {
             if (this.dom.editPlatform) this.dom.editPlatform.value = platform;
             if (this.dom.editKey) this.dom.editKey.value = key;
-            if (this.dom.editValue) this.dom.editValue.value = val;
+            if (this.dom.editIsSecret) this.dom.editIsSecret.value = isSecret ? 'true' : 'false';
             if (this.dom.editIdentifier) this.dom.editIdentifier.innerText = `${platform} -> ${key}`;
+
+            if (isSecret) {
+                if (this.dom.editPlainGroup) this.dom.editPlainGroup.style.display = 'none';
+                if (this.dom.editSecretGroup) this.dom.editSecretGroup.style.display = 'block';
+                if (this.dom.editSecretValue) this.dom.editSecretValue.value = '';
+                if (this.dom.editValue) this.dom.editValue.value = '';
+            } else {
+                if (this.dom.editPlainGroup) this.dom.editPlainGroup.style.display = 'block';
+                if (this.dom.editSecretGroup) this.dom.editSecretGroup.style.display = 'none';
+                if (this.dom.editValue) this.dom.editValue.value = val;
+                if (this.dom.editSecretValue) this.dom.editSecretValue.value = '';
+            }
             this.dom.editModal?.classList.add('show');
         };
 
         this.dom.accordionList.querySelectorAll('.mfe-editable').forEach(el => {
-            el.addEventListener('click', () => triggerEdit(el.dataset.platform, el.dataset.key, el.innerText));
+            el.addEventListener('click', () => triggerEdit(el.dataset.platform, el.dataset.key, el.dataset.val, el.dataset.secret === 'true'));
         });
 
         this.dom.accordionList.querySelectorAll('.mfe-edit-btn').forEach(btn => {
-            btn.addEventListener('click', () => triggerEdit(btn.dataset.platform, btn.dataset.key, btn.dataset.val));
+            btn.addEventListener('click', () => triggerEdit(btn.dataset.platform, btn.dataset.key, btn.dataset.val, btn.dataset.secret === 'true'));
+        });
+
+        // Bind per-provider test buttons
+        this.dom.accordionList.querySelectorAll('.mfe-test-provider-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.sendTestNotification('INFO', 'Provider Self-Test', `Connectivity test for '${btn.dataset.platform}'`, btn.dataset.platform));
         });
 
         // Bind delete provider buttons
@@ -592,32 +756,36 @@ class NotifServerMFE extends BaseElementClass {
         });
     }
 
-    async sendTestNotification(level, title, message) {
+    async sendTestNotification(level, title, message, tag = '') {
         try {
+            const payload = { level, title, message };
+            if (tag) payload.tag = tag;
+
             let url = `${this.baseUrl}/api/v1/notif/test`;
             let res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ level, title, message })
+                body: JSON.stringify(payload)
             }).catch(() => null);
 
             if ((!res || !res.ok) && typeof window !== 'undefined' && this.baseUrl !== window.location.origin) {
                 res = await fetch(`${window.location.origin}/api/v1/notif/test`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ level, title, message })
+                    body: JSON.stringify(payload)
                 }).catch(() => null);
             }
 
             const data = res ? await res.json().catch(() => ({})) : {};
             if (res && res.ok && data.success) {
-                alert("Test notification successfully queued for dispatch!");
-                if (this.dom.testMessage) this.dom.testMessage.value = '';
+                this.showToast(data.message || 'Test notification queued for dispatch!', 'success');
+                if (!tag && this.dom.testMessage) this.dom.testMessage.value = '';
+                setTimeout(() => Promise.all([this.loadStatus(), this.loadNotifiers()]), 1000);
             } else {
-                alert(`Failed to send notification: ${data.message || 'Unknown error'}`);
+                this.showToast(`Failed to send notification: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (err) {
-            alert(`Failed to trigger test delivery: ${err.message}`);
+            this.showToast(`Failed to trigger test delivery: ${err.message}`, 'error');
         }
     }
 
@@ -640,13 +808,13 @@ class NotifServerMFE extends BaseElementClass {
 
             const data = res ? await res.json().catch(() => ({})) : {};
             if (res && res.ok && data.success) {
-                alert(`Alerting provider '${tag}' initialized successfully.`);
+                this.showToast(`Alerting provider '${tag}' initialized successfully.`, 'success');
                 await this.loadAll();
             } else {
-                alert(`Failed to initialize provider: ${data.message || 'Unknown error'}`);
+                this.showToast(`Failed to initialize provider: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (err) {
-            alert(`Failed to create provider: ${err.message}`);
+            this.showToast(`Failed to create provider: ${err.message}`, 'error');
         }
     }
 
@@ -669,12 +837,13 @@ class NotifServerMFE extends BaseElementClass {
 
             const data = res ? await res.json().catch(() => ({})) : {};
             if (res && res.ok && data.success) {
+                this.showToast(`Updated ${platform} -> ${key} live.`, 'success');
                 await this.loadAll();
             } else {
-                alert(`Error saving configuration: ${data.message || 'Unknown error'}`);
+                this.showToast(`Error saving configuration: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (err) {
-            alert(`Failed to save configuration: ${err.message}`);
+            this.showToast(`Failed to save configuration: ${err.message}`, 'error');
         }
     }
 
@@ -700,13 +869,13 @@ class NotifServerMFE extends BaseElementClass {
 
             const data = res ? await res.json().catch(() => ({})) : {};
             if (res && res.ok && data.success) {
-                alert(`Provider '${platform}' removed.`);
+                this.showToast(`Provider '${platform}' removed.`, 'success');
                 await this.loadAll();
             } else {
-                alert(`Failed to delete provider: ${data.message || 'Unknown error'}`);
+                this.showToast(`Failed to delete provider: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (err) {
-            alert(`Delete provider failed: ${err.message}`);
+            this.showToast(`Delete provider failed: ${err.message}`, 'error');
         }
     }
 
@@ -723,13 +892,13 @@ class NotifServerMFE extends BaseElementClass {
 
             const data = res ? await res.json().catch(() => ({})) : {};
             if (res && res.ok && data.success) {
-                alert("Sender engines reloaded successfully.");
+                this.showToast('Sender engines reloaded successfully.', 'success');
                 await this.loadAll();
             } else {
-                alert(`Reload failed: ${data.message || 'Unknown error'}`);
+                this.showToast(`Reload failed: ${data.message || 'Unknown error'}`, 'error');
             }
         } catch (err) {
-            alert(`Reload failed: ${err.message}`);
+            this.showToast(`Reload failed: ${err.message}`, 'error');
         }
     }
 }

@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Bastien-Antigravity/notif-server/src/sanitizer"
+
 	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
@@ -87,6 +89,20 @@ func NewDiscordSender(discordConf map[string]string, confName string, logger log
 
 // -----------------------------------------------------------------------------
 
+// redactError strips the webhook URL and any other secrets from transport errors via the standard sanitizer.
+func (discordSender *DiscordSender) redactError(err error) error {
+	if err == nil {
+		return nil
+	}
+	errStr := err.Error()
+	if discordSender.discordUrl != "" {
+		errStr = strings.ReplaceAll(errStr, discordSender.discordUrl, "[REDACTED_WEBHOOK_URL]")
+	}
+	return fmt.Errorf("%s", sanitizer.RedactSecrets(errStr))
+}
+
+// -----------------------------------------------------------------------------
+
 func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUsed, notUsedAlso string) error {
 	discordSender.logger.Debug("[%s] Sending notification to Discord...", discordSender.tag)
 
@@ -103,8 +119,9 @@ func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUse
 	for i := 0; i < maxRetries; i++ {
 		req, err := http.NewRequestWithContext(ctx, "POST", discordSender.discordUrl, bytes.NewBuffer(jsonByteMessage))
 		if err != nil {
-			discordSender.logger.Error("[%s] Failed to create HTTP request (discord): %v", discordSender.tag, err)
-			return fmt.Errorf("failed to create request (discord): %w", err)
+			safeErr := discordSender.redactError(err)
+			discordSender.logger.Error("[%s] Failed to create HTTP request (discord): %v", discordSender.tag, safeErr)
+			return fmt.Errorf("failed to create request (discord): %w", safeErr)
 		}
 		req.Header.Set("Content-Type", "application/json")
 
@@ -127,7 +144,7 @@ func (discordSender *DiscordSender) SendMessage(ctx context.Context, msg, notUse
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			lastErr = fmt.Errorf("failed to post http request (discord): %v", err)
+			lastErr = discordSender.redactError(fmt.Errorf("failed to post http request (discord): %w", err))
 		}
 
 		discordSender.logger.Warning("[%s] Discord delivery attempt %d failed: %v. Retrying in %v...", discordSender.tag, i+1, lastErr, backoff)

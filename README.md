@@ -27,12 +27,13 @@ tags:
 - **Architectural Hardening**:
     - **Stable Identity**: Host-based tracking (strips dynamic ports).
     - **Graceful Lifecycle**: Live hot-reload with sequential queue draining and idempotent shutdown.
-    - **Resource Protection**: 10-minute idle pruning and Load-Shedding during spikes.
-- **Universal Standards**: Strictly adheres to the ecosystem-wide **I/M Naming Prefixes** and governance headers.
+    - **Secret Isolation & Sanitization**: Instantiation-time credential decryption (immutable senders), deny-by-default config masking for `web-interface`/OpenMFE, kernel-confined Gmail attachments (`os.OpenRoot`), and centralized secret redaction (`src/sanitizer`).
+    - **Resource Protection**: 10-minute idle pruning and tracked load-shedding during spikes.
+- **Universal Standards**: Adheres strictly to ecosystem Triple-Block headers, 4-block imports, and `VERSION.txt` single-source versioning.
 
 ## 🏗️ Architecture
 
-For a deep-dive into the components and data flow, refer to [ARCHITECTURE.md](ARCHITECTURE.md).
+For architecture details, behavior, and testing guides, refer to [quick-overview/Architecture-Overview.md](quick-overview/Architecture-Overview.md) and [AGENTS.md](AGENTS.md).
 
 ## 🛠️ Usage
 
@@ -47,16 +48,22 @@ go run cmd/notif-server/main.go
 
 ### Test
 ```bash
-go test -v ./...
+go test -race -v ./...
 ```
 
 ## 📂 Project Structure
 
-- `src/server/`: Hardened protocol orchestration and identity resolution.
-- `src/core/`: The `INotifier` hub, router, and worker pool manager.
-- `src/notifiers/`: Resilience-aware integrations (Telegram, Discord, etc.).
-- `src/interfaces/`: Universal contract definitions (`INotifier`, `INotifSender`).
-- `src/schemas/`: Serialization contracts (Capnp/Proto).
+- `cmd/notif-server/`: Main daemon entrypoint and Telegram pre-flight verification.
+- `cmd/libnotif/`: CGO shared library bridge (`libnotif`) for polyglot fleet bindings under `notif/`.
+- `src/server/`: Hardened dual-protocol (TCP & gRPC) server orchestration and identity resolution.
+- `src/core/`: The `Notifier` hub, tag/level router, controller, graceful hot-reload, and live metrics.
+- `src/notifiers/`: Immutable, timeout-guarded provider integrations (Telegram, Discord, Matrix, Gmail).
+- `src/sanitizer/`: Deny-by-default secret masking, MIME header/filename sanitization, and error redaction.
+- `src/rest/`: HTTP REST management API, `/api/v1/contracts`, and embedded OpenMFE (`mfe.js`).
+- `src/grpc_control/`: gRPC control plane (`NotifControlService`) with masked config exposure.
+- `src/telegram/`: Interactive Tele-Remote bot control menus.
+- `src/interfaces/`: Contract definitions (`INotifier`, `INotifSender`).
+- `src/schemas/`: Serialization contracts (Cap'n Proto & Protobuf).
 
 ## 📜 Governance
 This project follows the **Squad Protocol** for Go Systems. Every file includes mandatory **Triple-Block Headers** and organized **4-Block Imports**.

@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Bastien-Antigravity/notif-server/src/sanitizer"
+
 	log_interfaces "github.com/Bastien-Antigravity/universal-logger/src/interfaces"
 )
 
@@ -119,17 +121,16 @@ func NewTelegramSender(telegramConf map[string]string, confName string, logger l
 
 // -----------------------------------------------------------------------------
 
-// redactError strips plain bot token from error messages to prevent credential leaks in logs [NS-4].
+// redactError strips bot token and any other secrets from error messages via the standard sanitizer [NS-4].
 func (ts *TelegramSender) redactError(err error) error {
 	if err == nil {
 		return nil
 	}
 	errStr := err.Error()
-	if ts.token != "" && strings.Contains(errStr, ts.token) {
+	if ts.token != "" {
 		errStr = strings.ReplaceAll(errStr, ts.token, "[REDACTED_BOT_TOKEN]")
-		return fmt.Errorf("%s", errStr)
 	}
-	return err
+	return fmt.Errorf("%s", sanitizer.RedactSecrets(errStr))
 }
 
 // -----------------------------------------------------------------------------
