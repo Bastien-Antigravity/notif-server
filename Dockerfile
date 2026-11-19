@@ -27,6 +27,8 @@ RUN go mod tidy && \
 # === RUNTIME STAGE ===
 FROM alpine:3.20
 
+LABEL org.opencontainers.image.source="https://github.com/Bastien-Antigravity/notif-server"
+
 # Install runtime dependencies
 RUN apk add --no-cache ca-certificates tzdata
 
