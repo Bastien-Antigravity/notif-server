@@ -61,23 +61,24 @@ func (m *mockTestLogger) Error(format string, args ...any) {
 	defer m.mu.Unlock()
 	m.errorLogs = append(m.errorLogs, fmt.Sprintf(format, args...))
 }
-func (m *mockTestLogger) Critical(format string, args ...any) {}
-func (m *mockTestLogger) Logon(format string, args ...any)    {}
-func (m *mockTestLogger) Logout(format string, args ...any)   {}
-func (m *mockTestLogger) Trade(format string, args ...any)    {}
-func (m *mockTestLogger) Schedule(format string, args ...any) {}
-func (m *mockTestLogger) Report(format string, args ...any)   {}
-func (m *mockTestLogger) Stream(format string, args ...any)   {}
-func (m *mockTestLogger) SetLevel(level unilog_interfaces.Level) {}
-func (m *mockTestLogger) GetLevel() unilog_interfaces.Level     { return unilog_interfaces.LevelDebug }
-func (m *mockTestLogger) SetCallerSkip(skip int)                {}
-func (m *mockTestLogger) SetMetadata(metadata map[string]string) {}
-func (m *mockTestLogger) AddMetadata(key, value string)         {}
-func (m *mockTestLogger) GetMetadata() map[string]string        { return nil }
-func (m *mockTestLogger) Close()                                {}
+func (m *mockTestLogger) Critical(format string, args ...any)                           {}
+func (m *mockTestLogger) Logon(format string, args ...any)                              {}
+func (m *mockTestLogger) Logout(format string, args ...any)                             {}
+func (m *mockTestLogger) Trade(format string, args ...any)                              {}
+func (m *mockTestLogger) Schedule(format string, args ...any)                           {}
+func (m *mockTestLogger) Report(format string, args ...any)                             {}
+func (m *mockTestLogger) Stream(format string, args ...any)                             {}
+func (m *mockTestLogger) SetLevel(level unilog_interfaces.Level)                        {}
+func (m *mockTestLogger) GetLevel() unilog_interfaces.Level                             { return unilog_interfaces.LevelDebug }
+func (m *mockTestLogger) SetCallerSkip(skip int)                                        {}
+func (m *mockTestLogger) SetMetadata(metadata map[string]string)                        {}
+func (m *mockTestLogger) AddMetadata(key, value string)                                 {}
+func (m *mockTestLogger) GetMetadata() map[string]string                                { return nil }
+func (m *mockTestLogger) Close()                                                        {}
 func (m *mockTestLogger) Log(level unilog_interfaces.Level, format string, args ...any) {}
-func (m *mockTestLogger) LogWithCaller(level unilog_interfaces.Level, msg, file, line, function, module string) {}
-func (m *mockTestLogger) GetNotifQueue() <-chan *unilog_interfaces.NotifMessage { return nil }
+func (m *mockTestLogger) LogWithCaller(level unilog_interfaces.Level, msg, file, line, function, module string) {
+}
+func (m *mockTestLogger) GetNotifQueue() <-chan *unilog_interfaces.NotifMessage             { return nil }
 func (m *mockTestLogger) SetLocalNotifQueue(notifChan chan *unilog_interfaces.NotifMessage) {}
 
 // -----------------------------------------------------------------------------

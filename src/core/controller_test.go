@@ -182,4 +182,3 @@ func TestSendTestNotificationRoutesToActiveSenders(t *testing.T) {
 
 	assert.Equal(t, "[test] hello from test", mock.getLastMsg())
 }
-

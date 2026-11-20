@@ -783,9 +783,3 @@ func TestReloadAndRegisterAfterStopAreSafe(t *testing.T) {
 		n.InitDefaultProviders()
 	})
 }
-
-
-
-
-
-

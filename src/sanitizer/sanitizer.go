@@ -149,4 +149,3 @@ func RedactSecrets(input string, knownSecrets ...string) string {
 	out = reEncryptedBlob.ReplaceAllString(out, "[REDACTED_ENC]")
 	return out
 }
-

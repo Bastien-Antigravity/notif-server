@@ -6,4 +6,3 @@ import _ "embed"
 //
 //go:embed notif_server.proto
 var NotifServerProtoSchema string
-

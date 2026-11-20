@@ -53,15 +53,15 @@ func (m *mockLogger) Trade(format string, args ...any)  { fmt.Printf("TRADE: "+f
 func (m *mockLogger) Schedule(format string, args ...any) {
 	fmt.Printf("SCHEDULE: "+format+"\n", args...)
 }
-func (m *mockLogger) Report(format string, args ...any)               { fmt.Printf("REPORT: "+format+"\n", args...) }
-func (m *mockLogger) Stream(format string, args ...any)               { fmt.Printf("STREAM: "+format+"\n", args...) }
-func (m *mockLogger) SetLevel(level utils.Level)                      {}
-func (m *mockLogger) GetLevel() utils.Level                           { return utils.LevelInfo }
-func (m *mockLogger) SetCallerSkip(skip int)                          {}
-func (m *mockLogger) Close()                                          {}
-func (m *mockLogger) Log(lvl utils.Level, format string, args ...any) {}
+func (m *mockLogger) Report(format string, args ...any)                                         { fmt.Printf("REPORT: "+format+"\n", args...) }
+func (m *mockLogger) Stream(format string, args ...any)                                         { fmt.Printf("STREAM: "+format+"\n", args...) }
+func (m *mockLogger) SetLevel(level utils.Level)                                                {}
+func (m *mockLogger) GetLevel() utils.Level                                                     { return utils.LevelInfo }
+func (m *mockLogger) SetCallerSkip(skip int)                                                    {}
+func (m *mockLogger) Close()                                                                    {}
+func (m *mockLogger) Log(lvl utils.Level, format string, args ...any)                           {}
 func (m *mockLogger) LogWithCaller(level utils.Level, msg, file, line, function, module string) {}
-func (m *mockLogger) AddMetadata(key string, value any)               {}
+func (m *mockLogger) AddMetadata(key string, value any)                                         {}
 
 // -----------------------------------------------------------------------------
 

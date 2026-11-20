@@ -93,7 +93,7 @@ func main() {
 	_ = toolbox_spec.PublishWithLifecycle(appConfig, uniLog, lm, "notif_server", toolbox_spec.ServiceSpec{
 		Name:        "Notif Server",
 		Tag:         "notif-server-mfe",
-		URL:         fmt.Sprintf("http://%s/static/js/mfe-loader.js", restAddr),
+		URL:         toolbox_spec.ResolveMFEURL(appConfig, fmt.Sprintf("http://%s/static/js/mfe-loader.js", restAddr)),
 		NavTitle:    "Notif Server",
 		Layer:       "L1",
 		Category:    "Base Fleet",
@@ -224,5 +224,3 @@ func verifyTelegramToken(baseURL, token string) (bool, string, error) {
 
 	return false, res.Description, nil
 }
-
-

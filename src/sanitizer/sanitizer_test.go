@@ -77,4 +77,3 @@ func TestRedactSecretsExhaustive(t *testing.T) {
 	assert.Contains(t, clean, "[REDACTED_ENC]")
 	assert.Contains(t, clean, "[REDACTED]")
 }
-

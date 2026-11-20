@@ -173,8 +173,6 @@ func (c *Controller) SendTestNotificationToTag(tag, level, title, message string
 	return nil
 }
 
-
-
 // -----------------------------------------------------------------------------
 
 // ReloadConfig triggers a manual reload of the configuration.

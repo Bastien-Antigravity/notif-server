@@ -77,4 +77,3 @@ func (s *Server) handleConnection(sock socket_interfaces.TransportConnection) {
 		}
 	}
 }
-

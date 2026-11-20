@@ -188,28 +188,28 @@ func (notifier *Notifier) InitDefaultProviders() {
 	if url == "" {
 		url = "https://api.telegram.org"
 	}
-		conf := map[string]string{
-			"TYPE":     "TELEGRAM",
-			"TAG":      "telegram",
-			"TOKEN":    token,
-			"CHATID":   chatID,
-			"URL":      url,
-			"LOGLEVEL": "CRITICAL,ERROR,WARNING,INFO",
-		}
-		notifier.startSenderLocked("TELEGRAM", "telegram", conf, nil)
+	conf := map[string]string{
+		"TYPE":     "TELEGRAM",
+		"TAG":      "telegram",
+		"TOKEN":    token,
+		"CHATID":   chatID,
+		"URL":      url,
+		"LOGLEVEL": "CRITICAL,ERROR,WARNING,INFO",
+	}
+	notifier.startSenderLocked("TELEGRAM", "telegram", conf, nil)
 
-		// Designate Telegram as the authoritative main default provider and universal fallback
-		if tele, ok := notifier.TagToSenderMap["telegram"]; ok {
-			notifier.DefaultSender = tele
-			notifier.DefaultTag = "telegram"
-		}
+	// Designate Telegram as the authoritative main default provider and universal fallback
+	if tele, ok := notifier.TagToSenderMap["telegram"]; ok {
+		notifier.DefaultSender = tele
+		notifier.DefaultTag = "telegram"
+	}
 
-		// Register default implicit routing levels for telegram
-		for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING"} {
-			notifier.addLevelTagLocked(lvl, "telegram")
-		}
+	// Register default implicit routing levels for telegram
+	for _, lvl := range []string{"CRITICAL", "ERROR", "WARNING"} {
+		notifier.addLevelTagLocked(lvl, "telegram")
+	}
 
-		notifier.Logger.Info("Default main Telegram notification provider mounted from static capabilities (routing: CRITICAL,ERROR,WARNING)")
+	notifier.Logger.Info("Default main Telegram notification provider mounted from static capabilities (routing: CRITICAL,ERROR,WARNING)")
 }
 
 // -----------------------------------------------------------------------------
@@ -857,5 +857,3 @@ func (notifier *Notifier) GetDefaultTag() string {
 	defer notifier.mu.RUnlock()
 	return notifier.DefaultTag
 }
-
-

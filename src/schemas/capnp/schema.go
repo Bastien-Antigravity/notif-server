@@ -6,4 +6,3 @@ import _ "embed"
 //
 //go:embed notifier.capnp
 var NotifierCapnpSchema string
-

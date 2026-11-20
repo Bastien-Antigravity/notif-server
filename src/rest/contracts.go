@@ -235,4 +235,3 @@ func (h *RESTHandler) handleContracts(w http.ResponseWriter, r *http.Request) {
 	contracts := BuildExchangeContracts(h.appConfig, notifiers, supportedTypes)
 	h.sendJSON(w, toolbox_spec.NewContractsEnvelope("notif_server", version, "notif-server (live controller + embedded schemas)", contracts))
 }
-
